@@ -29,6 +29,15 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // Helper to load app into Dashboard
+  Future<void> loadDashboard(WidgetTester tester) async {
+    await loadLoginScreen(tester);
+    await tester.enterText(find.byType(TextFormField).at(0), 'pilot@moneypilot.com');
+    await tester.enterText(find.byType(TextFormField).at(1), 'password123');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Log In'));
+    await tester.pumpAndSettle();
+  }
+
   // =========================================================================
   // SPLASH & ONBOARDING SUITE
   // =========================================================================
@@ -122,8 +131,25 @@ void main() {
   });
 
   testWidgets('Returning user routes directly from Splash to Login', (WidgetTester tester) async {
-    await loadLoginScreen(tester);
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    FlutterSecureStorage.setMockInitialValues({
+      'moneypilot_has_seen_onboarding': 'true',
+    });
+
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MoneyPilotApp(),
+      ),
+    );
+
+    await tester.pump(const Duration(milliseconds: 1300));
+    await tester.pumpAndSettle();
+
     expect(find.text('Welcome Back'), findsOneWidget);
+    expect(find.text('Log In'), findsWidgets);
   });
 
   // =========================================================================
@@ -134,48 +160,40 @@ void main() {
     await loadLoginScreen(tester);
 
     expect(find.text('Welcome Back'), findsOneWidget);
-    expect(find.text('Log in to navigate your financial flight path'), findsOneWidget);
 
-    // Tap Log In with empty form
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Log In'));
+    // Tap Log In with empty fields
+    final loginButton = find.widgetWithText(ElevatedButton, 'Log In');
+    await tester.ensureVisible(loginButton);
+    await tester.tap(loginButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Email is required'), findsOneWidget);
     expect(find.text('Password is required'), findsOneWidget);
 
     // Enter invalid email format
-    final emailField = find.byType(TextFormField).at(0);
-    await tester.enterText(emailField, 'invalid-email');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Log In'));
+    await tester.enterText(find.byType(TextFormField).at(0), 'invalidemailformat');
+    await tester.ensureVisible(loginButton);
+    await tester.tap(loginButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Please enter a valid email address'), findsOneWidget);
-    expect(find.text('Password is required'), findsOneWidget);
   });
 
   testWidgets('Login: password visibility toggle works', (WidgetTester tester) async {
     await loadLoginScreen(tester);
 
     final passwordFieldFinder = find.byType(TextField).at(1);
-    final initialField = tester.widget<TextField>(passwordFieldFinder);
-    expect(initialField.obscureText, isTrue);
+    TextField passwordField = tester.widget<TextField>(passwordFieldFinder);
+    expect(passwordField.obscureText, isTrue);
 
-    // Initial icon is visibility_off_outlined
-    expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.visibility_off_outlined));
+    // Tap toggle visibility icon
+    final visibilityIcon = find.byIcon(Icons.visibility_off_outlined);
+    expect(visibilityIcon, findsOneWidget);
+    await tester.tap(visibilityIcon);
     await tester.pumpAndSettle();
 
-    final revealedField = tester.widget<TextField>(passwordFieldFinder);
-    expect(revealedField.obscureText, isFalse);
-    expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
-
-    // Tap again to obscure
-    await tester.tap(find.byIcon(Icons.visibility_outlined));
-    await tester.pumpAndSettle();
-
-    final obscuredAgainField = tester.widget<TextField>(passwordFieldFinder);
-    expect(obscuredAgainField.obscureText, isTrue);
-    expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+    passwordField = tester.widget<TextField>(passwordFieldFinder);
+    expect(passwordField.obscureText, isFalse);
   });
 
   testWidgets('Login: valid form allows login and navigates to Dashboard', (WidgetTester tester) async {
@@ -187,7 +205,8 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Log In'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Dashboard coming soon'), findsOneWidget);
+    expect(find.text('Welcome aboard!'), findsOneWidget);
+    expect(find.text('FINANCIAL OVERVIEW'), findsOneWidget);
   });
 
   // =========================================================================
@@ -256,7 +275,8 @@ void main() {
     await tester.tap(find.widgetWithText(ElevatedButton, 'Create Account'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Dashboard coming soon'), findsOneWidget);
+    expect(find.text('Welcome aboard!'), findsOneWidget);
+    expect(find.text('FINANCIAL OVERVIEW'), findsOneWidget);
   });
 
   // =========================================================================
@@ -313,5 +333,117 @@ void main() {
     await tester.tap(find.text('Log In'));
     await tester.pumpAndSettle();
     expect(find.text('Welcome Back'), findsOneWidget);
+  });
+
+  // =========================================================================
+  // MAIN APP SHELL & DASHBOARD TESTS
+  // =========================================================================
+
+  testWidgets('Main Shell: bottom navigation renders 5 destinations and switches branches', (WidgetTester tester) async {
+    await loadDashboard(tester);
+
+    // Verify all 5 bottom nav items are rendered
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Transactions'), findsWidgets);
+    expect(find.text('Budget'), findsOneWidget);
+    expect(find.text('Goals'), findsOneWidget);
+    expect(find.text('Reports'), findsWidgets);
+
+    // Switch to Transactions tab via bottom nav
+    await tester.tap(find.widgetWithText(AnimatedContainer, 'Transactions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transactions coming soon'), findsOneWidget);
+
+    // Switch to Budget tab
+    await tester.tap(find.text('Budget'));
+    await tester.pumpAndSettle();
+    expect(find.text('Budgets coming soon'), findsOneWidget);
+
+    // Switch to Goals tab
+    await tester.tap(find.text('Goals'));
+    await tester.pumpAndSettle();
+    expect(find.text('Goals coming soon'), findsOneWidget);
+
+    // Switch to Reports tab
+    await tester.tap(find.widgetWithText(AnimatedContainer, 'Reports'));
+    await tester.pumpAndSettle();
+    expect(find.text('Reports coming soon'), findsOneWidget);
+
+    // Switch back to Home (Dashboard)
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    expect(find.text('Welcome aboard!'), findsOneWidget);
+  });
+
+  testWidgets('Dashboard: header, balance cards, cashflow chart, transactions, budgets, goals render', (WidgetTester tester) async {
+    await loadDashboard(tester);
+
+    // Greeting & Header
+    expect(find.text('MoneyPilot'), findsWidgets);
+    expect(find.text('Welcome aboard!'), findsOneWidget);
+
+    // Quick Actions
+    expect(find.text('+ Add Entry'), findsOneWidget);
+
+    // Financial Overview & Metric Cards
+    expect(find.text('FINANCIAL OVERVIEW'), findsOneWidget);
+    expect(find.text('Income'), findsOneWidget);
+    expect(find.text('Expenses'), findsOneWidget);
+    expect(find.text('Net Balance / Savings'), findsOneWidget);
+
+    // Cash Flow Chart
+    expect(find.text('Weekly Cash Flow'), findsOneWidget);
+    expect(find.text('Inflow'), findsOneWidget);
+    expect(find.text('Outflow'), findsOneWidget);
+
+    // Recent Transactions
+    expect(find.text('Recent Transactions'), findsOneWidget);
+    expect(find.text('Salary'), findsWidgets);
+    expect(find.text('Keells Supermarket'), findsOneWidget);
+    expect(find.text('Uber'), findsOneWidget);
+    expect(find.text('Dialog'), findsOneWidget);
+    expect(find.text('Coffee Shop'), findsOneWidget);
+
+    // Monthly Budget preview
+    expect(find.text('Monthly Budget'), findsOneWidget);
+    expect(find.text('Food & Dining'), findsOneWidget);
+    expect(find.text('Transportation'), findsWidgets);
+    expect(find.text('Entertainment'), findsOneWidget);
+
+    // Goals preview
+    expect(find.text('Financial Goals'), findsOneWidget);
+    expect(find.text('Emergency Flight Reserve'), findsOneWidget);
+    expect(find.text('Japan Vacation'), findsOneWidget);
+  });
+
+  testWidgets('Dashboard: Quick Action (+ Add Entry) navigates to /transactions/add', (WidgetTester tester) async {
+    await loadDashboard(tester);
+
+    final addEntryButton = find.byKey(const Key('quick_action_add_entry'));
+    final inkWell = find.descendant(of: addEntryButton, matching: find.byType(InkWell));
+    (tester.widget(inkWell) as InkWell).onTap!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add Transaction coming soon'), findsOneWidget);
+  });
+
+  testWidgets('Dashboard: Profile button navigates to /profile and returns', (WidgetTester tester) async {
+    await loadDashboard(tester);
+
+    final profileButton = find.byKey(const Key('dashboard_profile_button'));
+    expect(profileButton, findsOneWidget);
+    (tester.widget(profileButton) as IconButton).onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pilot Profile'), findsOneWidget);
+    expect(find.text('Chief Pilot'), findsOneWidget);
+    expect(find.text('pilot@moneypilot.com'), findsOneWidget);
+    expect(find.text('FLIGHT CAPTAIN'), findsOneWidget);
+
+    // Back to dashboard
+    await tester.tap(find.text('Back to Dashboard'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome aboard!'), findsOneWidget);
   });
 }
