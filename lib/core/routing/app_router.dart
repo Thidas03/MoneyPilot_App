@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/forgot_password_screen.dart';
+import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/splash_screen.dart';
+import '../../features/onboarding/presentation/onboarding_screen.dart';
+
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Centralized GoRouter provider for MoneyPilot.
 /// Uses the exact route paths, shell structure, and navigator keys from the reference architecture.
-/// Feature screen builders use placeholder views during Phase 3 until feature screens are ported in Phase 4.
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -15,23 +20,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Splash Screen
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const _RoutePlaceholder(title: 'Splash'),
+        builder: (context, state) => const SplashScreen(),
       ),
 
       // Onboarding Walkthrough
       GoRoute(
         path: '/onboarding',
-        builder: (context, state) => const _RoutePlaceholder(title: 'Onboarding'),
+        builder: (context, state) => const OnboardingScreen(),
       ),
 
       // Auth Public Routes
       GoRoute(
         path: '/login',
-        builder: (context, state) => const _RoutePlaceholder(title: 'Login'),
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const _RoutePlaceholder(title: 'Register'),
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ForgotPasswordScreen(),
       ),
 
       // Profile Detail Route (Full screen push on root navigator)
@@ -149,7 +159,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Temporary placeholder widget used prior to Phase 4 screen integration.
+/// Reusable temporary placeholder widget used prior to full screen integration.
 class _RoutePlaceholder extends StatelessWidget {
   const _RoutePlaceholder({required this.title});
 
@@ -158,11 +168,27 @@ class _RoutePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: const Text('MoneyPilot')),
       body: Center(
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.headlineSmall,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'MoneyPilot',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$title coming soon',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -6,10 +6,11 @@ class AppColors {
   AppColors._();
 
   // Brand Primary (Emerald)
-  static const Color primary = Color(0xFF059669); // brand-500
+  static const Color primary = Color(0xFF005C46); // Primary Emerald #005C46
   static const Color primaryLight = Color(0xFF10B981); // brand-400
-  static const Color primaryDark = Color(0xFF047857); // brand-600
-  static const Color primaryContainer = Color(0xFFD1FAE5); // emerald-100
+  static const Color primaryDark = Color(0xFF047857); // brand-600 / darker emerald #047857
+  static const Color emerald = Color(0xFF059669); // Emerald #059669
+  static const Color primaryContainer = Color(0xFFD1FAE5); // emerald-100 #D1FAE5
   static const Color onPrimaryContainer = Color(0xFF065F46); // emerald-800
 
   // Brand Gradients & Accents
@@ -19,15 +20,17 @@ class AppColors {
   static const Color indigo = Color(0xFF6366F1);
 
   // Functional / Financial Status Colors
-  static const Color income = Color(0xFF10B981); // Emerald
-  static const Color expense = Color(0xFFF43F5E); // Rose / Red
-  static const Color warning = Color(0xFFF59E0B); // Amber
+  static const Color income = Color(0xFF10B981); // Emerald #10B981
+  static const Color expense = Color(0xFFF43F5E); // Rose / Red #F43F5E
+  static const Color darkExpense = Color(0xFFDC2626); // Dark expense #DC2626
+  static const Color warning = Color(0xFFF59E0B); // Amber #F59E0B
   static const Color info = Color(0xFF3B82F6); // Blue
   static const Color purple = Color(0xFF8B5CF6); // Violet
 
   // Light Theme Surfaces
-  static const Color backgroundLight = Color(0xFFF8FAFC); // slate-50
+  static const Color backgroundLight = Color(0xFFF8FAFC); // slate-50 #F8FAFC
   static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color white = Color(0xFFFFFFFF); // #FFFFFF
   static const Color cardLight = Color(0xFFFFFFFF);
   static const Color borderLight = Color(0xFFE2E8F0); // slate-200
   static const Color dividerLight = Color(0xFFF1F5F9); // slate-100
