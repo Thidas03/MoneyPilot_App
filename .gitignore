@@ -50,6 +50,7 @@ app.*.map.json
 # Environment & Secrets
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 *service-account*.json

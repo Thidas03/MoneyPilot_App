@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
@@ -10,15 +12,67 @@ import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/navigation/presentation/main_navigation_shell.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/transactions/domain/transaction_model.dart';
+import '../../features/transactions/presentation/add_transaction_screen.dart';
+import '../../features/transactions/presentation/transactions_screen.dart';
+import '../../features/budgets/domain/budget_model.dart';
+import '../../features/budgets/presentation/add_budget_screen.dart';
+import '../../features/budgets/presentation/budgets_screen.dart';
+
+
+/// Helper ChangeNotifier that notifies GoRouter on authentication stream events.
+class _GoRouterRefreshStream extends ChangeNotifier {
+  _GoRouterRefreshStream(Stream<dynamic> stream) {
+    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}
 
 /// Centralized GoRouter provider for MoneyPilot.
 /// Uses the exact route paths, shell structure, and navigator keys from the reference architecture.
 final appRouterProvider = Provider<GoRouter>((ref) {
   final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'rootNav');
+  final authRepository = ref.watch(authRepositoryProvider);
+
+  final refreshStream = _GoRouterRefreshStream(authRepository.authStateChanges());
+  ref.onDispose(refreshStream.dispose);
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
+    refreshListenable: refreshStream,
+    redirect: (context, state) {
+      final location = state.uri.path;
+
+      // Allow splash and onboarding to proceed based on their internal timers & state
+      if (location == '/splash' || location == '/onboarding') {
+        return null;
+      }
+
+      final isAuthenticated = authRepository.isAuthenticated;
+      final isAuthRoute = location == '/login' ||
+          location == '/register' ||
+          location == '/forgot-password';
+
+      // Unauthenticated users attempting to access authenticated areas
+      if (!isAuthenticated && !isAuthRoute) {
+        return '/login';
+      }
+
+      // Authenticated users attempting to visit login/register
+      if (isAuthenticated && (location == '/login' || location == '/register')) {
+        return '/dashboard';
+      }
+
+      return null;
+    },
     routes: [
       // Splash Screen
       GoRoute(
@@ -58,14 +112,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/transactions/add',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (context, state) => const _RoutePlaceholder(title: 'Add Transaction'),
+        builder: (context, state) {
+          final tx = state.extra as Transaction?;
+          return AddTransactionScreen(existingTransaction: tx);
+        },
       ),
 
       // Add Budget Form (Full screen push on root navigator)
       GoRoute(
         path: '/budgets/add',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (context, state) => const _RoutePlaceholder(title: 'Add Budget'),
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return AddBudgetScreen(
+            existingBudget: extra?['existingBudget'] as Budget?,
+            initialCategory: extra?['category'] as String?,
+            initialAmount: extra?['amount'] as double?,
+            isOverallInitial: extra?['isOverall'] as bool? ?? false,
+          );
+        },
       ),
 
       // Main Navigation Stateful Shell (Bottom Navigation Bar)
@@ -89,7 +154,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/transactions',
-                builder: (context, state) => const _RoutePlaceholder(title: 'Transactions'),
+                builder: (context, state) => const TransactionsScreen(),
               ),
             ],
           ),
@@ -99,7 +164,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/budgets',
-                builder: (context, state) => const _RoutePlaceholder(title: 'Budgets'),
+                builder: (context, state) => const BudgetsScreen(),
               ),
             ],
           ),

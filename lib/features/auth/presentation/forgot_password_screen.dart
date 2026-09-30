@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
+import 'auth_controller.dart';
 
-/// Forgot Password Screen providing temporary password reset confirmation.
-class ForgotPasswordScreen extends StatefulWidget {
+/// Forgot Password Screen providing Supabase password reset request confirmation.
+class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   bool _isSubmitted = false;
@@ -24,11 +26,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
-  void _onSubmit() {
+  Future<void> _onSubmit() async {
     if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isSubmitted = true;
-      });
+      final success = await ref.read(authControllerProvider.notifier).resetPassword(
+        _emailController.text,
+      );
+      if (!mounted) return;
+      if (success) {
+        setState(() {
+          _isSubmitted = true;
+        });
+      } else {
+        final error = ref.read(authControllerProvider).error;
+        if (error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString()),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -159,6 +178,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                               const SizedBox(height: 24),
                               CustomButton(
                                 text: 'Send Reset Link',
+                                isLoading: ref.watch(authControllerProvider).isLoading,
                                 onPressed: _onSubmit,
                               ),
                             ],

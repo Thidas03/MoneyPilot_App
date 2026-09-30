@@ -23,6 +23,7 @@ class AppColors {
   static const Color income = Color(0xFF10B981); // Emerald #10B981
   static const Color expense = Color(0xFFF43F5E); // Rose / Red #F43F5E
   static const Color darkExpense = Color(0xFFDC2626); // Dark expense #DC2626
+  static const Color error = Color(0xFFDC2626); // Error red #DC2626
   static const Color warning = Color(0xFFF59E0B); // Amber #F59E0B
   static const Color info = Color(0xFF3B82F6); // Blue
   static const Color purple = Color(0xFF8B5CF6); // Violet

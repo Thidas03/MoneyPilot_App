@@ -352,12 +352,12 @@ void main() {
     // Switch to Transactions tab via bottom nav
     await tester.tap(find.widgetWithText(AnimatedContainer, 'Transactions'));
     await tester.pumpAndSettle();
-    expect(find.text('Transactions coming soon'), findsOneWidget);
+    expect(find.byKey(const Key('transaction_search_field')), findsOneWidget);
 
     // Switch to Budget tab
     await tester.tap(find.text('Budget'));
     await tester.pumpAndSettle();
-    expect(find.text('Budgets coming soon'), findsOneWidget);
+    expect(find.text('Monthly Budget Target'), findsOneWidget);
 
     // Switch to Goals tab
     await tester.tap(find.text('Goals'));
@@ -424,7 +424,8 @@ void main() {
     (tester.widget(inkWell) as InkWell).onTap!();
     await tester.pumpAndSettle();
 
-    expect(find.text('Add Transaction coming soon'), findsOneWidget);
+    expect(find.text('Add Transaction'), findsOneWidget);
+    expect(find.byKey(const Key('save_transaction_button')), findsOneWidget);
   });
 
   testWidgets('Dashboard: Profile button navigates to /profile and returns', (WidgetTester tester) async {
@@ -445,5 +446,24 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome aboard!'), findsOneWidget);
+  });
+
+  testWidgets('Profile: Log Out action terminates session and navigates to Login', (WidgetTester tester) async {
+    await loadDashboard(tester);
+
+    final profileButton = find.byKey(const Key('dashboard_profile_button'));
+    expect(profileButton, findsOneWidget);
+    (tester.widget(profileButton) as IconButton).onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pilot Profile'), findsOneWidget);
+    final logoutButton = find.byKey(const Key('profile_logout_button'));
+    expect(logoutButton, findsOneWidget);
+
+    await tester.tap(logoutButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome Back'), findsOneWidget);
+    expect(find.text('Log In'), findsWidgets);
   });
 }

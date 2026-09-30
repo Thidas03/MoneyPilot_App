@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/storage/secure_storage.dart';
+import '../data/auth_repository.dart';
 
 /// Splash Screen that checks for stored session/onboarding state and routes appropriately.
 class SplashScreen extends ConsumerStatefulWidget {
@@ -25,21 +26,35 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     if (!mounted) return;
 
+    final authRepo = ref.read(authRepositoryProvider);
     final secureStorage = ref.read(secureStorageProvider);
-    final hasToken = await secureStorage.hasToken();
 
-    if (!mounted) return;
+    // 1. Check live session or stored token
+    final session = authRepo.getCurrentSession();
+    final hasStoredToken = await secureStorage.hasToken();
 
-    if (hasToken) {
-      context.go('/dashboard');
-    } else {
-      final hasSeenOnboarding = await secureStorage.hasSeenOnboarding();
+    if (session != null) {
       if (!mounted) return;
-      if (hasSeenOnboarding) {
-        context.go('/login');
-      } else {
-        context.go('/onboarding');
+      context.go('/dashboard');
+      return;
+    }
+
+    if (hasStoredToken) {
+      if (authRepo is SupabaseAuthRepository) {
+        authRepo.restoreMockSession();
       }
+      if (!mounted) return;
+      context.go('/dashboard');
+      return;
+    }
+
+    // 2. Unauthenticated: check if completed onboarding
+    final hasSeenOnboarding = await secureStorage.hasSeenOnboarding();
+    if (!mounted) return;
+    if (hasSeenOnboarding) {
+      context.go('/login');
+    } else {
+      context.go('/onboarding');
     }
   }
 

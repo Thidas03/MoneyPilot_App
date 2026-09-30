@@ -2,14 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/supabase/supabase_service.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../auth/presentation/auth_controller.dart';
+import '../data/profile_repository.dart';
+import '../domain/user_profile.dart';
 
-/// Pilot Profile screen presenting account details and preferences.
+/// Pilot Profile screen presenting account details, preferences, and authentication management.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(currentUserProfileProvider);
+    final isLiveSupabase = ref.watch(isSupabaseActiveProvider);
+    final profile = profileAsync.asData?.value ?? UserProfile.mock;
+
+    final displayName = profile.fullName.isNotEmpty ? profile.fullName : 'Chief Pilot';
+    final displayEmail = profile.email.isNotEmpty ? profile.email : 'pilot@moneypilot.com';
+    final flightBadge = profile.flightBadge.isNotEmpty ? profile.flightBadge.toUpperCase() : 'FLIGHT CAPTAIN';
+    final currencyText = 'Sri Lankan Rupee (${profile.currencySymbol})';
+    final statusText = isLiveSupabase ? 'Active Supabase Session' : 'Active Prototype Session';
+
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(
@@ -57,18 +71,18 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Chief Pilot',
-                      style: TextStyle(
+                    Text(
+                      displayName,
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'pilot@moneypilot.com',
-                      style: TextStyle(
+                    Text(
+                      displayEmail,
+                      style: const TextStyle(
                         fontSize: 13,
                         color: Color(0xFF64748B),
                         fontWeight: FontWeight.w500,
@@ -81,9 +95,9 @@ class ProfileScreen extends ConsumerWidget {
                         color: const Color(0xFFE8F5E9),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        'FLIGHT CAPTAIN',
-                        style: TextStyle(
+                      child: Text(
+                        flightBadge,
+                        style: const TextStyle(
                           color: AppColors.primary,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
@@ -104,20 +118,20 @@ class ProfileScreen extends ConsumerWidget {
               borderColor: const Color(0xFFE2E8F0),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
               child: Column(
-                children: const [
+                children: [
                   _ProfileDetailTile(
                     icon: Icons.badge_outlined,
                     label: 'STATUS',
-                    value: 'Active Prototype Session',
+                    value: statusText,
                   ),
-                  Divider(height: 20, color: Color(0xFFF1F5F9)),
+                  const Divider(height: 20, color: Color(0xFFF1F5F9)),
                   _ProfileDetailTile(
                     icon: Icons.currency_exchange_rounded,
                     label: 'DEFAULT CURRENCY',
-                    value: 'Sri Lankan Rupee (Rs.)',
+                    value: currencyText,
                   ),
-                  Divider(height: 20, color: Color(0xFFF1F5F9)),
-                  _ProfileDetailTile(
+                  const Divider(height: 20, color: Color(0xFFF1F5F9)),
+                  const _ProfileDetailTile(
                     icon: Icons.calendar_today_rounded,
                     label: 'SESSION SINCE',
                     value: 'September 2026',
@@ -135,6 +149,35 @@ class ProfileScreen extends ConsumerWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary,
                 side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Logout Action
+            OutlinedButton.icon(
+              key: const Key('profile_logout_button'),
+              onPressed: () async {
+                await ref.read(authControllerProvider.notifier).signOut();
+                if (context.mounted) {
+                  context.go('/login');
+                }
+              },
+              icon: const Icon(Icons.logout_rounded, size: 18, color: AppColors.error),
+              label: const Text(
+                'Log Out',
+                style: TextStyle(
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),

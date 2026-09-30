@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/glass_card.dart';
+import 'auth_controller.dart';
 
-/// Registration Screen with form validation and temporary navigation to dashboard.
-class RegisterScreen extends StatefulWidget {
+/// Registration Screen with form validation and Supabase account creation.
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -31,9 +33,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  void _onRegister() {
+  Future<void> _onRegister() async {
     if (_formKey.currentState?.validate() ?? false) {
-      context.go('/dashboard');
+      final success = await ref.read(authControllerProvider.notifier).signUp(
+        email: _emailController.text,
+        password: _passwordController.text,
+        fullName: _nameController.text,
+      );
+      if (!mounted) return;
+      if (success) {
+        context.go('/dashboard');
+      } else {
+        final error = ref.read(authControllerProvider).error;
+        if (error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString()),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -196,6 +217,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 24),
                         CustomButton(
                           text: 'Create Account',
+                          isLoading: ref.watch(authControllerProvider).isLoading,
                           onPressed: _onRegister,
                         ),
                       ],

@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/categories.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../budgets/data/budgets_provider.dart';
+import '../../budgets/domain/budget_model.dart';
 import '../../goals/data/goals_provider.dart';
 import '../../transactions/data/transactions_provider.dart';
 import '../../transactions/domain/transaction_model.dart';
@@ -733,7 +734,7 @@ class DashboardScreen extends ConsumerWidget {
                     const SizedBox(height: 14),
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     const SizedBox(height: 12),
-                    ...budgets.map((b) => _buildBudgetSubItem(b)),
+                    ...budgets.map((b) => _buildBudgetSubItem(b, context)),
                   ],
                 ),
               ),
@@ -875,52 +876,77 @@ class DashboardScreen extends ConsumerWidget {
 );
   }
 
-  Widget _buildBudgetSubItem(dynamic budget) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  budget.category,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF334155),
+  Widget _buildBudgetSubItem(dynamic budget, BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        if (budget is Budget) {
+          context.push(
+            '/budgets/add',
+            extra: {
+              'existingBudget': budget,
+              'category': budget.category,
+              'amount': budget.amount,
+            },
+          );
+        } else {
+          context.go('/budgets');
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          budget.category,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF334155),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit_outlined, size: 11, color: Color(0xFF94A3B8)),
+                    ],
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${CurrencyFormatter.format(budget.spent)} / ${CurrencyFormatter.format(budget.amount)}',
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
+                const SizedBox(width: 8),
+                Text(
+                  '${CurrencyFormatter.format(budget.spent)} / ${CurrencyFormatter.format(budget.amount)}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: budget.progress,
-              minHeight: 5,
-              backgroundColor: const Color(0xFFF1F5F9),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                budget.isOverBudget
-                    ? const Color(0xFFDC2626)
-                    : const Color(0xFF005C46),
+              ],
+            ),
+            const SizedBox(height: 5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: budget.progress,
+                minHeight: 5,
+                backgroundColor: const Color(0xFFF1F5F9),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  budget.isOverBudget
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFF005C46),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

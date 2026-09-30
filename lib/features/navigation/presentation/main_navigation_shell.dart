@@ -54,9 +54,14 @@ class MainNavigationShell extends StatelessWidget {
       ),
     ];
 
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+
     return Scaffold(
-      body: navigationShell,
+      body: SizedBox.expand(
+        child: navigationShell,
+      ),
       bottomNavigationBar: Container(
+        height: 64 + bottomPadding,
         decoration: BoxDecoration(
           color: Colors.white,
           border: const Border(
@@ -73,57 +78,60 @@ class MainNavigationShell extends StatelessWidget {
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(navItems.length, (index) {
-              final isSelected = currentIndex == index;
-              final item = navItems[index];
+        padding: EdgeInsets.only(
+          left: 6,
+          right: 6,
+          top: 6,
+          bottom: bottomPadding > 0 ? bottomPadding : 6,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: List.generate(navItems.length, (index) {
+            final isSelected = currentIndex == index;
+            final item = navItems[index];
 
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => _onDestinationSelected(index),
-                  behavior: HitTestBehavior.opaque,
-                  child: Center(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: isSelected
-                          ? const EdgeInsets.symmetric(horizontal: 10, vertical: 6)
-                          : const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isSelected ? activePillBg : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isSelected ? item.activeIcon : item.icon,
+            return Expanded(
+              child: GestureDetector(
+                key: Key('nav_tab_${item.label.toLowerCase()}'),
+                onTap: () => _onDestinationSelected(index),
+                behavior: HitTestBehavior.opaque,
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: isSelected
+                        ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+                        : const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected ? activePillBg : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected ? item.activeIcon : item.icon,
+                          color: isSelected ? brandGreen : inactiveColor,
+                          size: 22,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
                             color: isSelected ? brandGreen : inactiveColor,
-                            size: 22,
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              fontWeight:
-                                  isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? brandGreen : inactiveColor,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              );
-            }),
-          ),
+              ),
+            );
+          }),
         ),
       ),
     );
