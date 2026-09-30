@@ -26,6 +26,7 @@ class DashboardScreen extends ConsumerWidget {
     final savingsRate = ref.watch(savingsRateProvider);
     final recentTransactions = ref.watch(recentTransactionsProvider);
     final budgets = ref.watch(budgetsProvider);
+    final activeBudgetAlerts = ref.watch(activeBudgetAlertsProvider);
     final goals = ref.watch(goalsProvider);
     final monthlyTarget = ref.watch(monthlyBudgetTargetProvider);
 
@@ -731,6 +732,48 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                       ),
                     ),
+                    if (activeBudgetAlerts.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: activeBudgetAlerts.any((b) => b.isOverBudget)
+                              ? const Color(0xFFFEF2F2)
+                              : const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: activeBudgetAlerts.any((b) => b.isOverBudget)
+                                ? const Color(0xFFFECACA)
+                                : const Color(0xFFFDE68A),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              activeBudgetAlerts.any((b) => b.isOverBudget) ? '🔴' : '⚠️',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                activeBudgetAlerts.any((b) => b.isOverBudget)
+                                    ? '${activeBudgetAlerts.firstWhere((b) => b.isOverBudget).category} is over budget!'
+                                    : '${activeBudgetAlerts.first.category} is near limit (${activeBudgetAlerts.first.usagePercentage.toStringAsFixed(0)}%)',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: activeBudgetAlerts.any((b) => b.isOverBudget)
+                                      ? const Color(0xFF991B1B)
+                                      : const Color(0xFF92400E),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: Color(0xFF94A3B8)),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     const SizedBox(height: 12),
@@ -789,15 +832,40 @@ class DashboardScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: Color(0xFF94A3B8),
-                          size: 20,
+                        Row(
+                          children: const [
+                            Text(
+                              'See All',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            SizedBox(width: 2),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: Color(0xFF94A3B8),
+                              size: 18,
+                            ),
+                          ],
                         ),
                       ],
                     ),
                     const SizedBox(height: 14),
-                    ...goals.map((goal) => Padding(
+                    if (goals.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No goals yet. Tap to set your savings milestones.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      )
+                    else
+                      ...goals.take(3).map((goal) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -831,13 +899,17 @@ class DashboardScreen extends ConsumerWidget {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    '${CurrencyFormatter.format(goal.currentAmount)} / ${CurrencyFormatter.format(goal.targetAmount)}',
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      color: Color(0xFF64748B),
+                                  Flexible(
+                                    child: Text(
+                                      '${CurrencyFormatter.format(goal.currentAmount)} / ${CurrencyFormatter.format(goal.targetAmount)}',
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
                                   Text(
                                     'ETA: ${goal.deadline}',
                                     style: const TextStyle(

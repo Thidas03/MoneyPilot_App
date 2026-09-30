@@ -362,12 +362,12 @@ void main() {
     // Switch to Goals tab
     await tester.tap(find.text('Goals'));
     await tester.pumpAndSettle();
-    expect(find.text('Goals coming soon'), findsOneWidget);
+    expect(find.text('Track Your Financial Dreams'), findsOneWidget);
 
     // Switch to Reports tab
     await tester.tap(find.widgetWithText(AnimatedContainer, 'Reports'));
     await tester.pumpAndSettle();
-    expect(find.text('Reports coming soon'), findsOneWidget);
+    expect(find.text('Reports & Analytics'), findsOneWidget);
 
     // Switch back to Home (Dashboard)
     await tester.tap(find.text('Home'));

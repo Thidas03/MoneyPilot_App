@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moneypilot/app.dart';
 import 'package:moneypilot/features/budgets/data/budgets_provider.dart';
-import 'package:moneypilot/features/budgets/domain/budget_model.dart';
 import 'package:moneypilot/features/budgets/presentation/add_budget_screen.dart';
 import 'package:moneypilot/features/budgets/presentation/budgets_screen.dart';
 

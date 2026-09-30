@@ -18,6 +18,12 @@ import '../../features/transactions/presentation/transactions_screen.dart';
 import '../../features/budgets/domain/budget_model.dart';
 import '../../features/budgets/presentation/add_budget_screen.dart';
 import '../../features/budgets/presentation/budgets_screen.dart';
+import '../../features/goals/domain/goal_model.dart';
+import '../../features/goals/presentation/add_goal_screen.dart';
+import '../../features/goals/presentation/goal_detail_screen.dart';
+
+import '../../features/goals/presentation/goals_screen.dart';
+import '../../features/reports/presentation/reports_screen.dart';
 
 
 /// Helper ChangeNotifier that notifies GoRouter on authentication stream events.
@@ -133,6 +139,39 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // Add Goal Form (Full screen push on root navigator)
+      GoRoute(
+        path: '/goals/add',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final goal = state.extra as Goal?;
+          return AddGoalScreen(existingGoal: goal);
+        },
+      ),
+
+      // Goal Detail Screen (Full screen push on root navigator)
+      GoRoute(
+        path: '/goals/detail',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final queryId = state.uri.queryParameters['id'];
+          final extraId = state.extra is String
+              ? state.extra as String
+              : (state.extra as Goal?)?.id;
+          final goalId = queryId ?? extraId ?? '';
+          return GoalDetailScreen(goalId: goalId);
+        },
+      ),
+      GoRoute(
+        path: '/goals/detail/:id',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final idParam = state.pathParameters['id'] ?? '';
+          return GoalDetailScreen(goalId: idParam);
+        },
+      ),
+
+
       // Main Navigation Stateful Shell (Bottom Navigation Bar)
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -174,7 +213,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/goals',
-                builder: (context, state) => const _RoutePlaceholder(title: 'Goals'),
+                builder: (context, state) => const GoalsScreen(),
               ),
             ],
           ),
@@ -184,7 +223,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/reports',
-                builder: (context, state) => const _RoutePlaceholder(title: 'Reports'),
+                builder: (context, state) => const ReportsScreen(),
               ),
             ],
           ),
@@ -195,6 +234,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 });
 
 /// Reusable temporary placeholder widget used prior to full screen integration.
+// ignore: unused_element
 class _RoutePlaceholder extends StatelessWidget {
   const _RoutePlaceholder({required this.title});
 

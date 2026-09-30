@@ -194,8 +194,8 @@ void main() {
         email: 'test@moneypilot.com',
         fullName: 'Jane Pilot',
         avatarUrl: 'https://example.com/avatar.png',
-        currencyCode: 'USD',
-        currencySymbol: '\$',
+        currencyCode: 'LKR',
+        currencySymbol: 'Rs.',
         flightBadge: 'Senior Captain',
         createdAt: DateTime.utc(2026, 1, 1),
         updatedAt: DateTime.utc(2026, 1, 2),
@@ -208,8 +208,8 @@ void main() {
       expect(reconstructed.email, equals('test@moneypilot.com'));
       expect(reconstructed.fullName, equals('Jane Pilot'));
       expect(reconstructed.avatarUrl, equals('https://example.com/avatar.png'));
-      expect(reconstructed.currencyCode, equals('USD'));
-      expect(reconstructed.currencySymbol, equals('\$'));
+      expect(reconstructed.currencyCode, equals('LKR'));
+      expect(reconstructed.currencySymbol, equals('Rs.'));
       expect(reconstructed.flightBadge, equals('Senior Captain'));
     });
   });

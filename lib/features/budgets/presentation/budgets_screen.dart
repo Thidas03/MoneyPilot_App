@@ -10,7 +10,7 @@ import '../../transactions/domain/transaction_model.dart';
 import '../data/budgets_provider.dart';
 import '../domain/budget_model.dart';
 
-/// Budgets Screen displaying overall monthly target and category budgets.
+/// Budgets Screen displaying overall monthly target and category budgets with real-time alerts.
 /// Allows adding new budgets or tapping an existing budget to edit/delete it.
 class BudgetsScreen extends ConsumerWidget {
   const BudgetsScreen({super.key});
@@ -23,6 +23,11 @@ class BudgetsScreen extends ConsumerWidget {
     final remaining = (budgetTarget - totalSpent).clamp(0.0, budgetTarget);
     final progress = budgetTarget > 0 ? (totalSpent / budgetTarget).clamp(0.0, 1.0) : 0.0;
 
+    // Category budgets backed by Supabase & transactions dynamic spending
+    final budgets = ref.watch(budgetsProvider);
+    final overBudgetList = ref.watch(overBudgetBudgetsProvider);
+    final nearLimitList = ref.watch(nearLimitBudgetsProvider);
+
     // Compute category expenses from transactions
     final transactions = ref.watch(transactionsProvider);
     final expenseMap = <String, double>{};
@@ -32,8 +37,7 @@ class BudgetsScreen extends ConsumerWidget {
       }
     }
 
-    // Category budgets
-    final budgets = ref.watch(budgetsProvider);
+    // Map budgets by category name
     final budgetMap = <String, Budget>{};
     for (final b in budgets) {
       budgetMap[b.category] = b;
@@ -227,7 +231,145 @@ class BudgetsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+
+            // PARTS 11 & 12: ACTIVE CATEGORY-SPECIFIC BUDGET ALERTS
+            if (overBudgetList.isNotEmpty || nearLimitList.isNotEmpty) ...[
+              const Text(
+                'BUDGET ALERTS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Over-Budget Category Alerts
+              ...overBudgetList.map(
+                (b) => Container(
+                  key: Key('alert_over_budget_${b.category.toLowerCase().replaceAll(RegExp(r'\s+'), '_')}'),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                  ),
+                  child: InkWell(
+                    onTap: () => context.push(
+                      '/budgets/add',
+                      extra: {
+                        'existingBudget': b,
+                        'category': b.category,
+                        'amount': b.amount,
+                      },
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('🔴', style: TextStyle(fontSize: 18)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                b.category,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: Color(0xFF991B1B),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'You\'ve exceeded your monthly budget by ${CurrencyFormatter.format(b.overBudgetAmount)}.',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFB91C1C),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Budget: ${CurrencyFormatter.format(b.amount)}  •  Spent: ${CurrencyFormatter.format(b.spent)}',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFF7F1D1D)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: Color(0xFFB91C1C), size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Near-Limit Category Alerts (80%+ threshold)
+              ...nearLimitList.map(
+                (b) => Container(
+                  key: Key('alert_near_limit_${b.category.toLowerCase().replaceAll(RegExp(r'\s+'), '_')}'),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: InkWell(
+                    onTap: () => context.push(
+                      '/budgets/add',
+                      extra: {
+                        'existingBudget': b,
+                        'category': b.category,
+                        'amount': b.amount,
+                      },
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('⚠️', style: TextStyle(fontSize: 18)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                b.category,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: Color(0xFF92400E),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'You\'ve used ${b.usagePercentage.toStringAsFixed(0)}% of your budget.',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${CurrencyFormatter.format(b.remaining)} remaining.',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFF78350F)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: Color(0xFFB45309), size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+            ],
 
             // Category Budgets Header
             Row(
@@ -309,8 +451,8 @@ class BudgetsScreen extends ConsumerWidget {
                 separatorBuilder: (context, index) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final category = allCategories[index];
-                  final spent = expenseMap[category] ?? 0.0;
                   final budget = budgetMap[category];
+                  final spent = budget != null ? budget.spent : (expenseMap[category] ?? 0.0);
                   final budgetLimit = budget?.amount;
                   final hasLimit = budgetLimit != null && budgetLimit > 0;
 

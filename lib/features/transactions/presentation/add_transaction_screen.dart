@@ -374,7 +374,18 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                         label: 'AMOUNT (${CurrencyFormatter.currencySymbol})',
                         hintText: '0.00',
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        prefixIcon: const Icon(Icons.attach_money_rounded),
+                        prefixIcon: Container(
+                          width: 48,
+                          alignment: Alignment.center,
+                          child: const Text(
+                            'Rs.',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Amount is required';

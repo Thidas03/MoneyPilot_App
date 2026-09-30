@@ -31,13 +31,11 @@ class CurrencyFormatter {
   }
 
   /// Parses a string representation back to double.
-  /// Strips out "LKR", "Rs.", "Rs", commas, spaces.
+  /// Strips out "LKR", "Rs.", "RS", "Rs", "rs", commas, spaces.
   static double? parse(String? input) {
     if (input == null || input.trim().isEmpty) return null;
     final cleaned = input
-        .replaceAll('LKR', '')
-        .replaceAll('Rs.', '')
-        .replaceAll('Rs', '')
+        .replaceAll(RegExp(r'(LKR|Rs\.|RS\.|Rs|RS|rs\.|rs)', caseSensitive: false), '')
         .replaceAll(',', '')
         .trim();
     return double.tryParse(cleaned);

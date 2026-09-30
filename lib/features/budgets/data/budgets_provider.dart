@@ -1,66 +1,247 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../transactions/data/transactions_provider.dart';
+import '../../transactions/domain/transaction_model.dart';
 import '../domain/budget_model.dart';
+import 'budget_repository.dart';
 
-/// Seed initial category budgets matching requested design specifications.
-final List<Budget> _initialBudgets = [
-  Budget(
-    id: 'budget-1',
-    category: 'Food & Dining',
-    amount: 25000,
-    spent: 18500,
-    period: 'Monthly',
-    note: 'Dining out, cafes and takeout allowance',
-    createdAt: DateTime(2026, 9, 1),
-  ),
-  Budget(
-    id: 'budget-2',
-    category: 'Transportation',
-    amount: 15000,
-    spent: 9200,
-    period: 'Monthly',
-    note: 'Fuel, tolls, ride-shares and taxi transfers',
-    createdAt: DateTime(2026, 9, 1),
-  ),
-  Budget(
-    id: 'budget-3',
-    category: 'Entertainment',
-    amount: 10000,
-    spent: 6500,
-    period: 'Monthly',
-    note: 'Movies, streaming subscriptions, events',
-    createdAt: DateTime(2026, 9, 1),
-  ),
-];
+/// Helper function to calculate exact spending for a budget from transaction expenses.
+double calculateBudgetSpent({
+  required Budget budget,
+  required List<Transaction> transactions,
+}) {
+  return transactions.where((tx) {
+    if (tx.type != TransactionType.expense) return false;
+    if (tx.date.month != budget.month || tx.date.year != budget.year) return false;
 
-/// Notifier managing category budgets.
+    final txCat = tx.category.trim().toLowerCase();
+    final bCat = budget.category.trim().toLowerCase();
+
+    // Match by category ID if both IDs exist
+    if (tx.categoryId.isNotEmpty &&
+        budget.categoryId.isNotEmpty &&
+        tx.categoryId == budget.categoryId) {
+      return true;
+    }
+
+    // Match by exact or normalized category name
+    if (txCat == bCat) return true;
+
+    // Harmonize common category naming variants (e.g. Food & Dining vs Dining Out)
+    if ((bCat == 'food & dining' || bCat == 'food and dining' || bCat == 'food') &&
+        (txCat == 'dining out' || txCat == 'food & dining' || txCat == 'food')) {
+      return true;
+    }
+
+    return false;
+  }).fold<double>(0.0, (sum, tx) => sum + tx.amount);
+}
+
+/// Notifier managing category budgets, backed by [BudgetRepository] and dynamically
+/// recalculating spending from [transactionsProvider].
 class BudgetsNotifier extends Notifier<List<Budget>> {
+  BudgetRepository get _repo => ref.read(budgetRepositoryProvider);
+
+  List<Budget> _baseBudgets = List<Budget>.from(initialMockBudgets);
+  bool _hasLoadedLive = false;
+
   @override
   List<Budget> build() {
-    return _initialBudgets;
+    // Watch transactions reactively so spending & alerts update immediately
+    // whenever transactions are added, edited, or deleted.
+    final transactions = ref.watch(transactionsProvider);
+
+    // Asynchronously synchronize with live Supabase repository once
+    _loadLiveBudgets();
+
+    return _applySpending(_baseBudgets, transactions);
   }
 
-  void addOrUpdateBudget(Budget newBudget) {
-    final index = state.indexWhere(
-      (b) => b.category.toLowerCase() == newBudget.category.toLowerCase(),
-    );
-
-    if (index >= 0) {
-      final updated = List<Budget>.from(state);
-      updated[index] = newBudget;
-      state = updated;
-    } else {
-      state = [...state, newBudget];
+  Future<void> _loadLiveBudgets() async {
+    if (_hasLoadedLive) return;
+    _hasLoadedLive = true;
+    try {
+      final list = await _repo.getCurrentMonthBudgets();
+      if (list.isNotEmpty) {
+        // Merge with current base budgets by ID or category name
+        final merged = List<Budget>.from(_baseBudgets);
+        for (final item in list) {
+          final idx = merged.indexWhere(
+            (b) =>
+                b.id == item.id ||
+                b.category.toLowerCase() == item.category.toLowerCase(),
+          );
+          if (idx >= 0) {
+            merged[idx] = item;
+          } else {
+            merged.add(item);
+          }
+        }
+        _baseBudgets = merged;
+        final transactions = ref.read(transactionsProvider);
+        state = _applySpending(_baseBudgets, transactions);
+      }
+    } catch (_) {
+      // Offline fallback remains active
     }
   }
 
+  /// Calculates dynamic spending for all budgets given the current transactions.
+  List<Budget> _applySpending(List<Budget> budgets, List<Transaction> transactions) {
+    return budgets.map((b) {
+      final calculatedSpent = calculateBudgetSpent(budget: b, transactions: transactions);
+      return b.copyWith(spent: calculatedSpent);
+    }).toList();
+  }
+
+  /// Reloads budgets from the repository and recalculates spending.
+  Future<void> refresh() async {
+    try {
+      final list = await _repo.getCurrentMonthBudgets();
+      if (list.isNotEmpty) {
+        _baseBudgets = list;
+      }
+      final transactions = ref.read(transactionsProvider);
+      state = _applySpending(_baseBudgets, transactions);
+    } catch (_) {}
+  }
+
+  /// Adds a new budget or updates an existing one (instant synchronous UI update + async persist).
+  Future<Budget> addOrUpdateBudget(Budget newBudget) async {
+    final index = _baseBudgets.indexWhere(
+      (b) =>
+          b.id == newBudget.id ||
+          b.category.toLowerCase() == newBudget.category.toLowerCase(),
+    );
+
+    Budget saved;
+    if (index >= 0) {
+      final updatedList = List<Budget>.from(_baseBudgets);
+      updatedList[index] = newBudget;
+      _baseBudgets = updatedList;
+
+      // Update state synchronously for instant reactivity
+      final transactions = ref.read(transactionsProvider);
+      state = _applySpending(_baseBudgets, transactions);
+
+      saved = await _repo.updateBudget(newBudget);
+    } else {
+      _baseBudgets = [..._baseBudgets, newBudget];
+
+      // Update state synchronously for instant reactivity
+      final transactions = ref.read(transactionsProvider);
+      state = _applySpending(_baseBudgets, transactions);
+
+      saved = await _repo.createBudget(
+        categoryId: newBudget.categoryId,
+        categoryName: newBudget.category,
+        amount: newBudget.amount,
+        period: newBudget.period,
+        month: newBudget.month,
+        year: newBudget.year,
+        note: newBudget.note,
+      );
+
+      final idx = _baseBudgets.indexWhere(
+        (b) => b.category.toLowerCase() == saved.category.toLowerCase(),
+      );
+      if (idx >= 0) {
+        _baseBudgets[idx] = saved;
+      }
+    }
+
+    return saved;
+  }
+
+  /// Creates a new budget in the repository and updates state.
+  Future<Budget> createBudget({
+    required String categoryId,
+    required String categoryName,
+    required double amount,
+    String period = 'Monthly',
+    int? month,
+    int? year,
+    String? note,
+  }) async {
+    final created = await _repo.createBudget(
+      categoryId: categoryId,
+      categoryName: categoryName,
+      amount: amount,
+      period: period,
+      month: month,
+      year: year,
+      note: note,
+    );
+
+    // Replace if existing category or prepend
+    final idx = _baseBudgets.indexWhere(
+      (b) => b.category.toLowerCase() == categoryName.toLowerCase(),
+    );
+    if (idx >= 0) {
+      final updated = List<Budget>.from(_baseBudgets);
+      updated[idx] = created;
+      _baseBudgets = updated;
+    } else {
+      _baseBudgets = [..._baseBudgets, created];
+    }
+
+    final transactions = ref.read(transactionsProvider);
+    state = _applySpending(_baseBudgets, transactions);
+    return created;
+  }
+
+  /// Updates an existing budget in repository and state.
+  Future<Budget> updateBudget(Budget budget) async {
+    final updated = await _repo.updateBudget(budget);
+    final idx = _baseBudgets.indexWhere((b) => b.id == updated.id);
+    if (idx >= 0) {
+      final updatedList = List<Budget>.from(_baseBudgets);
+      updatedList[idx] = updated;
+      _baseBudgets = updatedList;
+    }
+    final transactions = ref.read(transactionsProvider);
+    state = _applySpending(_baseBudgets, transactions);
+    return updated;
+  }
+
+  /// Deletes a budget by ID from repository and state.
+  Future<void> deleteBudget(String id) async {
+    await _repo.deleteBudget(id);
+    _baseBudgets = _baseBudgets.where((b) => b.id != id).toList();
+    final transactions = ref.read(transactionsProvider);
+    state = _applySpending(_baseBudgets, transactions);
+  }
+
+  /// Synchronous removal for test / legacy compatibility.
   void removeBudget(String id) {
-    state = state.where((b) => b.id != id).toList();
+    _baseBudgets = _baseBudgets.where((b) => b.id != id).toList();
+    final transactions = ref.read(transactionsProvider);
+    state = _applySpending(_baseBudgets, transactions);
+    _repo.deleteBudget(id);
   }
 }
 
-/// Provider for list of category budgets.
+/// Provider for reactive list of category budgets with dynamic spending calculation.
 final budgetsProvider = NotifierProvider<BudgetsNotifier, List<Budget>>(() {
   return BudgetsNotifier();
+});
+
+/// Near-limit alert provider: returns budgets where spending has reached 80% or more (and not over).
+final nearLimitBudgetsProvider = Provider<List<Budget>>((ref) {
+  final budgets = ref.watch(budgetsProvider);
+  return budgets.where((b) => b.isNearLimit).toList();
+});
+
+/// Over-budget alert provider: returns budgets where spending has exceeded the budget limit.
+final overBudgetBudgetsProvider = Provider<List<Budget>>((ref) {
+  final budgets = ref.watch(budgetsProvider);
+  return budgets.where((b) => b.isOverBudget).toList();
+});
+
+/// Combined active alerts provider for dashboard and budget screens.
+final activeBudgetAlertsProvider = Provider<List<Budget>>((ref) {
+  final budgets = ref.watch(budgetsProvider);
+  return budgets.where((b) => b.isOverBudget || b.isNearLimit).toList();
 });
 
 /// Overall monthly budget target limit.
