@@ -27,12 +27,19 @@ String formatAuthError(Object error) {
     if (msg.contains('email not confirmed')) {
       return 'Please verify your email address before logging in.';
     }
+    if (msg.contains('socketexception') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('no address associated') ||
+        msg.contains('clientexception')) {
+      return 'Unable to reach the server. Please check your internet connection or restart the emulator.';
+    }
     return error.message;
   }
 
   final errStr = error.toString().toLowerCase();
   if (error is SocketException ||
       errStr.contains('socketexception') ||
+      errStr.contains('failed host lookup') ||
       errStr.contains('connection refused') ||
       errStr.contains('network is unreachable')) {
     return 'Unable to reach the server. Please check your internet connection.';

@@ -240,7 +240,8 @@ CREATE POLICY "Users manage own reminders" ON public.reminders
     FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- 9. ANALYTICAL VIEWS
-CREATE OR REPLACE VIEW public.budget_overview AS
+CREATE OR REPLACE VIEW public.budget_overview 
+WITH (security_invoker = true) AS
 SELECT 
     b.id AS budget_id,
     b.user_id,
@@ -267,7 +268,8 @@ LEFT JOIN public.transactions t ON t.user_id = b.user_id
     AND t.transaction_date <= (b.end_date + INTERVAL '1 day' - INTERVAL '1 millisecond')
 GROUP BY b.id, b.user_id, b.category_id, c.name, c.icon, c.color_hex, b.amount, b.period, b.start_date, b.end_date;
 
-CREATE OR REPLACE VIEW public.monthly_financial_summary AS
+CREATE OR REPLACE VIEW public.monthly_financial_summary 
+WITH (security_invoker = true) AS
 SELECT 
     user_id,
     date_trunc('month', transaction_date) AS summary_month,
@@ -281,3 +283,4 @@ SELECT
     END AS savings_rate
 FROM public.transactions
 GROUP BY user_id, date_trunc('month', transaction_date);
+

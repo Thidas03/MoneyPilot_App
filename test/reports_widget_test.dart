@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneypilot/app.dart';
+import 'package:moneypilot/features/reports/domain/models/report_period.dart';
 import 'package:moneypilot/features/reports/presentation/widgets/cash_flow_bar_chart.dart';
 import 'package:moneypilot/features/reports/presentation/widgets/category_breakdown_card.dart';
 import 'package:moneypilot/features/reports/presentation/widgets/period_selector.dart';
 import 'package:moneypilot/features/reports/presentation/widgets/report_empty_state.dart';
+import 'package:moneypilot/features/reports/presentation/widgets/report_period_navigator.dart';
 import 'package:moneypilot/features/reports/presentation/widgets/report_summary_card.dart';
 import 'package:moneypilot/features/transactions/data/transactions_provider.dart';
 import 'package:moneypilot/features/transactions/domain/transaction_model.dart';
@@ -163,6 +165,82 @@ void main() {
 
       // Should navigate to Add Transaction screen
       expect(find.byType(AddTransactionScreen), findsOneWidget);
+    });
+
+    testWidgets('ReportPeriodNavigator renders with navigation buttons and label', (WidgetTester tester) async {
+      await loadReportsTab(tester);
+
+      expect(find.byType(ReportPeriodNavigator), findsOneWidget);
+      expect(find.byKey(const Key('report_previous_period_button')), findsOneWidget);
+      expect(find.byKey(const Key('report_period_label')), findsOneWidget);
+      expect(find.byKey(const Key('report_next_period_button')), findsOneWidget);
+
+      // On initial load (Month), Next button is disabled because it is the current period
+      final nextButton = tester.widget<IconButton>(find.byKey(const Key('report_next_period_button')));
+      expect(nextButton.onPressed, isNull);
+
+      final currentLabel = ReportPeriod.month.formatPeriodLabel(DateTime.now());
+      expect(find.text(currentLabel), findsWidgets);
+    });
+
+    testWidgets('Historical navigation: previous moves back, enables next button, and next returns to current', (WidgetTester tester) async {
+      await loadReportsTab(tester);
+
+      final currentMonthLabel = ReportPeriod.month.formatPeriodLabel(DateTime.now());
+      final prevMonthDate = ReportPeriod.month.previousDate(DateTime.now());
+      final prevMonthLabel = ReportPeriod.month.formatPeriodLabel(prevMonthDate);
+
+      // Tap Previous button
+      await tester.tap(find.byKey(const Key('report_previous_period_button')));
+      await tester.pumpAndSettle();
+
+      // Label should update to previous month
+      expect(find.text(prevMonthLabel), findsWidgets);
+
+      // Next button should now be enabled
+      final enabledNextButton = tester.widget<IconButton>(find.byKey(const Key('report_next_period_button')));
+      expect(enabledNextButton.onPressed, isNotNull);
+
+      // Tap Next button to return toward current month
+      await tester.tap(find.byKey(const Key('report_next_period_button')));
+      await tester.pumpAndSettle();
+
+      // Label should be current month again and Next button should be disabled
+      expect(find.text(currentMonthLabel), findsWidgets);
+      final disabledNextAgain = tester.widget<IconButton>(find.byKey(const Key('report_next_period_button')));
+      expect(disabledNextAgain.onPressed, isNull);
+    });
+
+    testWidgets('Switching period type resets historical reference date to current period', (WidgetTester tester) async {
+      await loadReportsTab(tester);
+
+      // Navigate back in Month
+      await tester.tap(find.byKey(const Key('report_previous_period_button')));
+      await tester.pumpAndSettle();
+
+      // Switch to Week tab
+      await tester.tap(find.byKey(const Key('period_tab_week')));
+      await tester.pumpAndSettle();
+
+      // Label must be the current week, not a historical week
+      final currentWeekLabel = ReportPeriod.week.formatPeriodLabel(DateTime.now());
+      expect(find.text(currentWeekLabel), findsWidgets);
+
+      // Next button must be disabled for current week
+      final nextWeekBtn = tester.widget<IconButton>(find.byKey(const Key('report_next_period_button')));
+      expect(nextWeekBtn.onPressed, isNull);
+
+      // Navigate back in Week
+      await tester.tap(find.byKey(const Key('report_previous_period_button')));
+      await tester.pumpAndSettle();
+
+      // Switch to Year tab
+      await tester.tap(find.byKey(const Key('period_tab_year')));
+      await tester.pumpAndSettle();
+
+      // Label must be the current year
+      final currentYearLabel = ReportPeriod.year.formatPeriodLabel(DateTime.now());
+      expect(find.text(currentYearLabel), findsWidgets);
     });
   });
 }

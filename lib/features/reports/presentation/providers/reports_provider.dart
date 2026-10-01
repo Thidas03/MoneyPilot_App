@@ -9,13 +9,51 @@ import '../../../transactions/data/transactions_provider.dart';
 import '../../../transactions/domain/transaction_model.dart';
 import '../../domain/models/models.dart';
 
+/// State notifier managing the reference date for report calculations.
+class ReportReferenceDateNotifier extends Notifier<DateTime> {
+  @override
+  DateTime build() => DateTime.now();
+
+  @override
+  set state(DateTime value) => super.state = value;
+  @override
+  DateTime get state => super.state;
+
+  void setDate(DateTime date) {
+    state = date;
+  }
+
+  void previous(ReportPeriod period) {
+    state = period.previousDate(state);
+  }
+
+  void next(ReportPeriod period) {
+    if (period.canNavigateNext(state)) {
+      state = period.nextDate(state);
+    }
+  }
+
+  void reset() {
+    state = DateTime.now();
+  }
+}
+
+/// Provider for the reference date from which report periods are computed.
+final reportReferenceDateProvider =
+    NotifierProvider<ReportReferenceDateNotifier, DateTime>(
+  ReportReferenceDateNotifier.new,
+);
+
 /// State notifier managing the currently selected reporting time period.
 class ReportPeriodNotifier extends Notifier<ReportPeriod> {
   @override
   ReportPeriod build() => ReportPeriod.month;
 
   void setPeriod(ReportPeriod period) {
-    state = period;
+    if (state != period) {
+      state = period;
+      ref.read(reportReferenceDateProvider.notifier).reset();
+    }
   }
 }
 
@@ -28,11 +66,12 @@ final reportPeriodProvider =
 /// Central provider deriving all reporting and analytics metrics from existing application data.
 final reportsProvider = Provider<ReportData>((ref) {
   final period = ref.watch(reportPeriodProvider);
+  final referenceDate = ref.watch(reportReferenceDateProvider);
   final allTransactions = ref.watch(transactionsProvider);
   final allBudgets = ref.watch(budgetsProvider);
   final allGoals = ref.watch(goalsProvider);
 
-  final dateRange = period.getDateRange();
+  final dateRange = period.getDateRange(referenceDate);
 
   // 1. Filter transactions within the active period range
   final periodTransactions = allTransactions.where((tx) {

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/supabase/supabase_service.dart';
 import '../../transactions/data/transactions_provider.dart';
 import '../../transactions/domain/transaction_model.dart';
 import '../domain/budget_model.dart';
@@ -42,18 +43,26 @@ double calculateBudgetSpent({
 class BudgetsNotifier extends Notifier<List<Budget>> {
   BudgetRepository get _repo => ref.read(budgetRepositoryProvider);
 
-  List<Budget> _baseBudgets = List<Budget>.from(initialMockBudgets);
+  List<Budget> _baseBudgets = [];
   bool _hasLoadedLive = false;
 
   @override
   List<Budget> build() {
-    // Watch transactions reactively so spending & alerts update immediately
-    // whenever transactions are added, edited, or deleted.
+    final isLive = ref.watch(supabaseClientProvider) != null;
     final transactions = ref.watch(transactionsProvider);
 
-    // Asynchronously synchronize with live Supabase repository once
-    _loadLiveBudgets();
+    if (isLive) {
+      if (!_hasLoadedLive) {
+        _baseBudgets = [];
+        _loadLiveBudgets();
+      }
+      return _applySpending(_baseBudgets, transactions);
+    }
 
+    if (!_hasLoadedLive) {
+      _baseBudgets = List<Budget>.from(initialMockBudgets);
+      _loadLiveBudgets();
+    }
     return _applySpending(_baseBudgets, transactions);
   }
 
@@ -62,25 +71,15 @@ class BudgetsNotifier extends Notifier<List<Budget>> {
     _hasLoadedLive = true;
     try {
       final list = await _repo.getCurrentMonthBudgets();
-      if (list.isNotEmpty) {
-        // Merge with current base budgets by ID or category name
-        final merged = List<Budget>.from(_baseBudgets);
-        for (final item in list) {
-          final idx = merged.indexWhere(
-            (b) =>
-                b.id == item.id ||
-                b.category.toLowerCase() == item.category.toLowerCase(),
-          );
-          if (idx >= 0) {
-            merged[idx] = item;
-          } else {
-            merged.add(item);
-          }
-        }
-        _baseBudgets = merged;
-        final transactions = ref.read(transactionsProvider);
-        state = _applySpending(_baseBudgets, transactions);
+      final isLive = ref.read(supabaseClientProvider) != null;
+
+      if (isLive) {
+        _baseBudgets = list;
+      } else if (list.isNotEmpty) {
+        _baseBudgets = list;
       }
+      final transactions = ref.read(transactionsProvider);
+      state = _applySpending(_baseBudgets, transactions);
     } catch (_) {
       // Offline fallback remains active
     }

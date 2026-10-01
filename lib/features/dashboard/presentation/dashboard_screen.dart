@@ -777,7 +777,19 @@ class DashboardScreen extends ConsumerWidget {
                     const SizedBox(height: 14),
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     const SizedBox(height: 12),
-                    ...budgets.map((b) => _buildBudgetSubItem(b, context)),
+                    if (budgets.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No budgets set yet. Tap to define monthly spending limits.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      )
+                    else
+                      ...budgets.take(3).map((b) => _buildBudgetSubItem(b, context)),
                   ],
                 ),
               ),

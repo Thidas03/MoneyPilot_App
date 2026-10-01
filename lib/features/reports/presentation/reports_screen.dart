@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/utils/date_formatter.dart';
 import '../../budgets/data/budgets_provider.dart';
 import '../../transactions/data/transactions_provider.dart';
 import '../domain/models/models.dart';
@@ -14,6 +13,7 @@ import 'widgets/financial_insights_card.dart';
 import 'widgets/goals_progress_card.dart';
 import 'widgets/period_selector.dart';
 import 'widgets/report_empty_state.dart';
+import 'widgets/report_period_navigator.dart';
 import 'widgets/report_summary_card.dart';
 import 'widgets/top_spending_card.dart';
 
@@ -26,6 +26,7 @@ class ReportsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final reportData = ref.watch(reportsProvider);
     final selectedPeriod = ref.watch(reportPeriodProvider);
+    final referenceDate = ref.watch(reportReferenceDateProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final dateRangeLabel = _formatDateRange(reportData.period, reportData.dateRange);
@@ -78,6 +79,19 @@ class ReportsScreen extends ConsumerWidget {
                 selectedPeriod: selectedPeriod,
                 onPeriodChanged: (period) {
                   ref.read(reportPeriodProvider.notifier).setPeriod(period);
+                },
+              ),
+              const SizedBox(height: 12),
+
+              // Period Navigation (< September 2026 >)
+              ReportPeriodNavigator(
+                period: selectedPeriod,
+                referenceDate: referenceDate,
+                onPrevious: () {
+                  ref.read(reportReferenceDateProvider.notifier).previous(selectedPeriod);
+                },
+                onNext: () {
+                  ref.read(reportReferenceDateProvider.notifier).next(selectedPeriod);
                 },
               ),
               const SizedBox(height: 16),
@@ -158,13 +172,6 @@ class ReportsScreen extends ConsumerWidget {
   }
 
   String _formatDateRange(ReportPeriod period, DateTimeRange range) {
-    switch (period) {
-      case ReportPeriod.week:
-        return '${DateFormatter.formatShort(range.start)} - ${DateFormatter.formatShort(range.end)}';
-      case ReportPeriod.month:
-        return DateFormatter.formatMonthYear(range.start);
-      case ReportPeriod.year:
-        return '${range.start.year}';
-    }
+    return period.formatPeriodLabel(range.start);
   }
 }

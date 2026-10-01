@@ -112,9 +112,14 @@ class SupabaseBudgetRepository implements BudgetRepository {
     }
 
     try {
+      final uid = authRepository.getCurrentUser()?.id;
       var query = client!
           .from('budgets')
           .select('*, categories(name, icon, color_hex)');
+
+      if (uid != null) {
+        query = query.eq('user_id', uid);
+      }
 
       if (month != null && year != null) {
         final startDateStr =
@@ -127,15 +132,12 @@ class SupabaseBudgetRepository implements BudgetRepository {
           .map((item) => Budget.fromMap(item as Map<String, dynamic>))
           .toList();
 
-      if (list.isEmpty) {
-        return _filterMockBudgets(month: month, year: year);
-      }
       return list;
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('[BudgetRepository] Error fetching live budgets: $e\n$st');
       }
-      return _filterMockBudgets(month: month, year: year);
+      return <Budget>[];
     }
   }
 

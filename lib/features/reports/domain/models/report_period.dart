@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 /// Supported reporting time horizons.
 enum ReportPeriod {
@@ -70,4 +71,77 @@ enum ReportPeriod {
     final range = getDateRange(referenceDate);
     return !date.isBefore(range.start) && !date.isAfter(range.end);
   }
+
+  /// Returns the reference date shifted backward by one period.
+  DateTime previousDate(DateTime reference) {
+    switch (this) {
+      case ReportPeriod.week:
+        return DateTime(reference.year, reference.month, reference.day - 7);
+      case ReportPeriod.month:
+        return DateTime(reference.year, reference.month - 1, 1);
+      case ReportPeriod.year:
+        return DateTime(reference.year - 1, 1, 1);
+    }
+  }
+
+  /// Returns the reference date shifted forward by one period, capped at the current period.
+  DateTime nextDate(DateTime reference, [DateTime? now]) {
+    if (!canNavigateNext(reference, now)) {
+      return reference;
+    }
+    switch (this) {
+      case ReportPeriod.week:
+        return DateTime(reference.year, reference.month, reference.day + 7);
+      case ReportPeriod.month:
+        return DateTime(reference.year, reference.month + 1, 1);
+      case ReportPeriod.year:
+        return DateTime(reference.year + 1, 1, 1);
+    }
+  }
+
+  /// Whether navigating forward is allowed without exceeding the current reporting period.
+  bool canNavigateNext(DateTime reference, [DateTime? now]) {
+    final current = now ?? DateTime.now();
+    switch (this) {
+      case ReportPeriod.week:
+        final currentWeekStart = getDateRange(current).start;
+        final refWeekStart = getDateRange(reference).start;
+        return refWeekStart.isBefore(currentWeekStart);
+
+      case ReportPeriod.month:
+        if (reference.year < current.year) return true;
+        if (reference.year == current.year && reference.month < current.month) {
+          return true;
+        }
+        return false;
+
+      case ReportPeriod.year:
+        return reference.year < current.year;
+    }
+  }
+
+  /// Returns a formatted human-readable label for the period (e.g. "Sep 21 – Sep 27, 2026", "September 2026", "2026").
+  String formatPeriodLabel(DateTime referenceDate) {
+    switch (this) {
+      case ReportPeriod.week:
+        final range = getDateRange(referenceDate);
+        final start = range.start;
+        final end = range.end;
+        if (start.year != end.year) {
+          final startFmt = DateFormat('MMM d, yyyy').format(start);
+          final endFmt = DateFormat('MMM d, yyyy').format(end);
+          return '$startFmt \u2013 $endFmt';
+        }
+        final startFmt = DateFormat('MMM d').format(start);
+        final endFmt = DateFormat('MMM d, yyyy').format(end);
+        return '$startFmt \u2013 $endFmt';
+
+      case ReportPeriod.month:
+        return DateFormat('MMMM yyyy').format(referenceDate);
+
+      case ReportPeriod.year:
+        return '${referenceDate.year}';
+    }
+  }
 }
+

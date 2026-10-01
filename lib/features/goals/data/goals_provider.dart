@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/supabase/supabase_service.dart';
 import '../domain/goal_contribution_model.dart';
 import '../domain/goal_model.dart';
 import 'goal_repository.dart';
@@ -11,9 +12,15 @@ class GoalsNotifier extends Notifier<List<Goal>> {
 
   @override
   List<Goal> build() {
-    // Seed initial state immediately so widgets never encounter an empty frame on startup
+    final isLive = ref.watch(supabaseClientProvider) != null;
+
+    if (isLive) {
+      Future.microtask(() => _loadLiveGoals());
+      return <Goal>[];
+    }
+
+    // Seed initial state only for offline testing and widget tests
     final initialList = List<Goal>.from(initialMockGoals);
-    // Asynchronously synchronize with repository (live Supabase or stored mock state)
     Future.microtask(() => _loadLiveGoals());
     return initialList;
   }
@@ -21,7 +28,11 @@ class GoalsNotifier extends Notifier<List<Goal>> {
   Future<void> _loadLiveGoals() async {
     try {
       final fetched = await _repository.getGoals();
-      if (fetched.isNotEmpty) {
+      final isLive = ref.read(supabaseClientProvider) != null;
+
+      if (isLive) {
+        state = fetched;
+      } else if (fetched.isNotEmpty) {
         // Merge fetched with state to preserve any local additions
         final existingIds = state.map((g) => g.id).toSet();
         final merged = List<Goal>.from(state);

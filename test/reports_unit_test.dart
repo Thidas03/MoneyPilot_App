@@ -186,5 +186,270 @@ void main() {
       expect(data.activeGoals.length, goals.where((g) => !g.isCompleted).length);
       expect(data.insights, isNotEmpty);
     });
+
+    test('changing reportReferenceDateProvider causes reportsProvider to recalculate historical data', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // Set period to month
+      container.read(reportPeriodProvider.notifier).setPeriod(ReportPeriod.month);
+
+      // Add a transaction in August 2026
+      final augustDate = DateTime(2026, 8, 15);
+      await container.read(transactionsProvider.notifier).addTransaction(
+            title: 'August Historical Consulting',
+            amount: 75000.0,
+            type: TransactionType.income,
+            categoryId: 'cat-sys-1',
+            categoryName: 'Salary',
+            date: augustDate,
+          );
+
+      // Initially viewing current month
+      final currentMonthData = container.read(reportsProvider);
+      final currentMonthAugustTxs = currentMonthData.periodTransactions
+          .where((t) => t.title == 'August Historical Consulting')
+          .toList();
+      expect(currentMonthAugustTxs, isEmpty);
+
+      // Navigate reference date to August 2026
+      container.read(reportReferenceDateProvider.notifier).setDate(augustDate);
+      final augustData = container.read(reportsProvider);
+
+      expect(augustData.dateRange.start, DateTime(2026, 8, 1));
+      expect(augustData.summary.totalIncome, greaterThanOrEqualTo(75000.0));
+      expect(
+        augustData.periodTransactions.any((t) => t.title == 'August Historical Consulting'),
+        isTrue,
+      );
+
+      // Switching period from Month to Week resets reference date to current period
+      container.read(reportPeriodProvider.notifier).setPeriod(ReportPeriod.week);
+      final resetWeekData = container.read(reportsProvider);
+      expect(resetWeekData.period, ReportPeriod.week);
+      final currentWeekRange = ReportPeriod.week.getDateRange(DateTime.now());
+      expect(resetWeekData.dateRange.start, currentWeekRange.start);
+    });
+  });
+
+  group('Reports Historical Navigation Domain & Boundary Tests', () {
+    test('Week navigation shifts exactly 7 days', () {
+      final ref = DateTime(2026, 9, 15); // Tuesday
+      final prev = ReportPeriod.week.previousDate(ref);
+      expect(prev, DateTime(2026, 9, 8));
+
+      final next = ReportPeriod.week.nextDate(prev, ref);
+      expect(next, DateTime(2026, 9, 15));
+    });
+
+    test('Month navigation moves exactly one calendar month safely', () {
+      final ref = DateTime(2026, 9, 15);
+      final prev = ReportPeriod.month.previousDate(ref);
+      expect(prev, DateTime(2026, 8, 1));
+
+      final next = ReportPeriod.month.nextDate(prev, ref);
+      expect(next, DateTime(2026, 9, 1));
+    });
+
+    test('Month navigation handles Jan 31 and month end without overflow', () {
+      final jan31 = DateTime(2026, 1, 31);
+      final prev = ReportPeriod.month.previousDate(jan31);
+      expect(prev.year, 2025);
+      expect(prev.month, 12);
+      expect(prev.day, 1);
+    });
+
+    test('Year navigation moves exactly one year', () {
+      final ref = DateTime(2026, 9, 15);
+      final prev = ReportPeriod.year.previousDate(ref);
+      expect(prev, DateTime(2025, 1, 1));
+
+      final next = ReportPeriod.year.nextDate(prev, ref);
+      expect(next, DateTime(2026, 1, 1));
+    });
+
+    test('Boundary cases: January 2026 -> December 2025 and December 2025 -> January 2026', () {
+      final jan2026 = DateTime(2026, 1, 15);
+      final dec2025 = ReportPeriod.month.previousDate(jan2026);
+      expect(dec2025.year, 2025);
+      expect(dec2025.month, 12);
+
+      final backToJan = ReportPeriod.month.nextDate(dec2025, jan2026);
+      expect(backToJan.year, 2026);
+      expect(backToJan.month, 1);
+    });
+
+    test('Leap year boundary: February 2028 has 29 days', () {
+      final feb2028 = DateTime(2028, 2, 15);
+      expect(ReportPeriod.month.getDaysInPeriod(feb2028), 29);
+
+      final prev = ReportPeriod.month.previousDate(feb2028);
+      expect(prev.year, 2028);
+      expect(prev.month, 1);
+
+      final febAgain = ReportPeriod.month.nextDate(prev, feb2028);
+      expect(febAgain.year, 2028);
+      expect(febAgain.month, 2);
+    });
+
+    test('Week crossing month boundary calculates and formats correctly', () {
+      // Sep 28 to Oct 4, 2026
+      final weekInCrossing = DateTime(2026, 10, 1);
+      final range = ReportPeriod.week.getDateRange(weekInCrossing);
+      expect(range.start, DateTime(2026, 9, 28));
+      expect(range.end.year, 2026);
+      expect(range.end.month, 10);
+      expect(range.end.day, 4);
+
+      final label = ReportPeriod.week.formatPeriodLabel(weekInCrossing);
+      expect(label, 'Sep 28 \u2013 Oct 4, 2026');
+
+      final prevWeek = ReportPeriod.week.previousDate(weekInCrossing);
+      final prevRange = ReportPeriod.week.getDateRange(prevWeek);
+      expect(prevRange.start, DateTime(2026, 9, 21));
+      expect(prevRange.end.day, 27);
+      expect(ReportPeriod.week.formatPeriodLabel(prevWeek), 'Sep 21 \u2013 Sep 27, 2026');
+    });
+
+    test('Week crossing year boundary calculates and formats correctly', () {
+      // Dec 29, 2025 to Jan 4, 2026
+      final weekCrossingYear = DateTime(2026, 1, 1);
+      final range = ReportPeriod.week.getDateRange(weekCrossingYear);
+      expect(range.start.year, 2025);
+      expect(range.start.month, 12);
+      expect(range.start.day, 29);
+      expect(range.end.year, 2026);
+      expect(range.end.month, 1);
+      expect(range.end.day, 4);
+
+      final label = ReportPeriod.week.formatPeriodLabel(weekCrossingYear);
+      expect(label, 'Dec 29, 2025 \u2013 Jan 4, 2026');
+    });
+
+    test('Future restriction prevents navigation past current period', () {
+      final now = DateTime(2026, 9, 15);
+
+      // Month
+      expect(ReportPeriod.month.canNavigateNext(DateTime(2026, 9, 1), now), isFalse);
+      expect(ReportPeriod.month.canNavigateNext(DateTime(2026, 8, 1), now), isTrue);
+      expect(ReportPeriod.month.canNavigateNext(DateTime(2026, 10, 1), now), isFalse);
+
+      // Week
+      expect(ReportPeriod.week.canNavigateNext(DateTime(2026, 9, 15), now), isFalse);
+      expect(ReportPeriod.week.canNavigateNext(DateTime(2026, 9, 8), now), isTrue);
+
+      // Year
+      expect(ReportPeriod.year.canNavigateNext(DateTime(2026, 1, 1), now), isFalse);
+      expect(ReportPeriod.year.canNavigateNext(DateTime(2025, 1, 1), now), isTrue);
+
+      // nextDate returns same date when next is blocked
+      final blocked = ReportPeriod.month.nextDate(DateTime(2026, 9, 1), now);
+      expect(blocked, DateTime(2026, 9, 1));
+    });
+
+    test('ReportReferenceDateNotifier supports previous, next, reset, and respects future bound', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final notifier = container.read(reportReferenceDateProvider.notifier);
+
+      // Current date initially
+      final initialDate = container.read(reportReferenceDateProvider);
+
+      // Attempting next when at current period does not move forward
+      notifier.next(ReportPeriod.month);
+      expect(container.read(reportReferenceDateProvider), initialDate);
+
+      // Month: previous and next
+      notifier.previous(ReportPeriod.month);
+      final prevMonth = container.read(reportReferenceDateProvider);
+      expect(prevMonth.isBefore(initialDate), isTrue);
+
+      notifier.next(ReportPeriod.month);
+      final backToCurrentMonth = container.read(reportReferenceDateProvider);
+      expect(backToCurrentMonth.month, initialDate.month);
+      expect(backToCurrentMonth.year, initialDate.year);
+
+      // Week: previous and next
+      notifier.previous(ReportPeriod.week);
+      final prevWeek = container.read(reportReferenceDateProvider);
+      expect(prevWeek.isBefore(backToCurrentMonth), isTrue);
+
+      notifier.next(ReportPeriod.week);
+      final backToCurrentWeek = container.read(reportReferenceDateProvider);
+      expect(backToCurrentWeek.isAfter(prevWeek), isTrue);
+
+      // Year: previous and next
+      notifier.previous(ReportPeriod.year);
+      final prevYear = container.read(reportReferenceDateProvider);
+      expect(prevYear.year, initialDate.year - 1);
+
+      notifier.next(ReportPeriod.year);
+      final backToCurrentYear = container.read(reportReferenceDateProvider);
+      expect(backToCurrentYear.year, initialDate.year);
+
+      // Reset
+      notifier.previous(ReportPeriod.year);
+      notifier.reset();
+      expect(container.read(reportReferenceDateProvider).year, initialDate.year);
+      expect(container.read(reportReferenceDateProvider).month, initialDate.month);
+    });
+
+    test('Period switching resets reference date across all combinations: Month -> Year and Year -> Week', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final periodNotifier = container.read(reportPeriodProvider.notifier);
+      final dateNotifier = container.read(reportReferenceDateProvider.notifier);
+
+      // Navigate to past month
+      dateNotifier.setDate(DateTime(2025, 5, 1));
+      expect(container.read(reportReferenceDateProvider), DateTime(2025, 5, 1));
+
+      // Switch to Year
+      periodNotifier.setPeriod(ReportPeriod.year);
+      final yearData = container.read(reportsProvider);
+      expect(yearData.period, ReportPeriod.year);
+      expect(yearData.dateRange.start.year, DateTime.now().year);
+
+      // Navigate to past year
+      dateNotifier.setDate(DateTime(2020, 1, 1));
+      expect(container.read(reportReferenceDateProvider), DateTime(2020, 1, 1));
+
+      // Switch to Week
+      periodNotifier.setPeriod(ReportPeriod.week);
+      final weekData = container.read(reportsProvider);
+      expect(weekData.period, ReportPeriod.week);
+      final currentWeekStart = ReportPeriod.week.getDateRange(DateTime.now()).start;
+      expect(weekData.dateRange.start, currentWeekStart);
+    });
+
+    test('Navigating to historical period with no transactions yields empty state without error', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // Set to historical year 2010 where no mock transactions exist
+      container.read(reportPeriodProvider.notifier).setPeriod(ReportPeriod.year);
+      container.read(reportReferenceDateProvider.notifier).setDate(DateTime(2010, 1, 1));
+
+      final data = container.read(reportsProvider);
+      expect(data.isEmpty, isTrue);
+      expect(data.periodTransactions, isEmpty);
+      expect(data.summary.totalIncome, 0.0);
+      expect(data.summary.totalExpenses, 0.0);
+      expect(data.summary.balance, 0.0);
+      expect(data.summary.transactionCount, 0);
+      expect(data.summary.averageDailyExpense, 0.0);
+      expect(data.summary.savingsRate, 0.0);
+      expect(data.categorySpendings, isEmpty);
+    });
+
+    test('Human-readable labels format dynamically for Week, Month, and Year', () {
+      final date = DateTime(2026, 9, 15);
+      expect(ReportPeriod.month.formatPeriodLabel(date), 'September 2026');
+      expect(ReportPeriod.year.formatPeriodLabel(date), '2026');
+      expect(ReportPeriod.week.formatPeriodLabel(date), 'Sep 14 \u2013 Sep 20, 2026');
+    });
   });
 }
+

@@ -140,7 +140,7 @@ class SupabaseGoalRepository implements GoalRepository {
 
     try {
       final uid = _currentUserId;
-      if (uid == null) return List.unmodifiable(_mockGoals);
+      if (uid == null) return <Goal>[];
 
       // Attempt querying 'savings_goals' (schema table name) with fallback to 'goals'
       try {
@@ -161,8 +161,8 @@ class SupabaseGoalRepository implements GoalRepository {
         return rows.map((r) => Goal.fromMap(r as Map<String, dynamic>)).toList();
       }
     } catch (e, st) {
-      debugPrint('[GoalRepository] Live fetch error, fallback to mock: $e\n$st');
-      return List.unmodifiable(_mockGoals);
+      debugPrint('[GoalRepository] Live fetch error: $e\n$st');
+      return <Goal>[];
     }
   }
 
@@ -417,10 +417,8 @@ class SupabaseGoalRepository implements GoalRepository {
       final list = rows.map((r) => GoalContribution.fromMap(r as Map<String, dynamic>)).toList();
       return list;
     } catch (e, st) {
-      debugPrint('[GoalRepository] Live getContributions error, fallback to mock: $e\n$st');
-      final list = _mockContributions.where((c) => c.goalId == goalId).toList();
-      list.sort((a, b) => b.date.compareTo(a.date));
-      return List.unmodifiable(list);
+      debugPrint('[GoalRepository] Live getContributions error: $e\n$st');
+      return <GoalContribution>[];
     }
   }
 

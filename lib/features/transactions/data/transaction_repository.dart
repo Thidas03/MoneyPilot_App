@@ -15,7 +15,7 @@ final List<Transaction> initialMockTransactions = [
     categoryId: 'cat-sys-1',
     amount: 250000,
     type: TransactionType.income,
-    date: DateTime(2026, 9, 28),
+    date: DateTime.now(),
     note: 'Monthly Flight Captain Salary',
   ),
   Transaction(
@@ -25,7 +25,7 @@ final List<Transaction> initialMockTransactions = [
     categoryId: 'cat-sys-4',
     amount: 8450,
     type: TransactionType.expense,
-    date: DateTime(2026, 9, 27),
+    date: DateTime.now(),
     note: 'Weekly groceries and essentials',
   ),
   Transaction(
@@ -35,7 +35,7 @@ final List<Transaction> initialMockTransactions = [
     categoryId: 'cat-sys-7',
     amount: 2500,
     type: TransactionType.expense,
-    date: DateTime(2026, 9, 26),
+    date: DateTime.now(),
     note: 'Airport taxi transfer',
   ),
   Transaction(
@@ -45,7 +45,7 @@ final List<Transaction> initialMockTransactions = [
     categoryId: 'cat-sys-5',
     amount: 1850,
     type: TransactionType.expense,
-    date: DateTime(2026, 9, 25),
+    date: DateTime.now(),
     note: 'Broadband & mobile postpaid bill',
   ),
   Transaction(
@@ -55,7 +55,7 @@ final List<Transaction> initialMockTransactions = [
     categoryId: 'cat-sys-6',
     amount: 1200,
     type: TransactionType.expense,
-    date: DateTime(2026, 9, 24),
+    date: DateTime.now(),
     note: 'Artisan roast coffee & snacks',
   ),
 ];
@@ -129,9 +129,14 @@ class SupabaseTransactionRepository implements TransactionRepository {
     }
 
     try {
+      final uid = authRepository.getCurrentUser()?.id;
       var query = client!
           .from('transactions')
           .select('*, categories(name, icon, color_hex)');
+
+      if (uid != null) {
+        query = query.eq('user_id', uid);
+      }
 
       if (type != null) {
         query = query.eq('type', type.value);
@@ -159,13 +164,7 @@ class SupabaseTransactionRepository implements TransactionRepository {
       if (kDebugMode) {
         debugPrint('[TransactionRepository] Error fetching transactions: $e\n$st');
       }
-      return _filterMockTransactions(
-        type: type,
-        categoryId: categoryId,
-        startDate: startDate,
-        endDate: endDate,
-        search: search,
-      );
+      return <Transaction>[];
     }
   }
 

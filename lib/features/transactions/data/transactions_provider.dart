@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/supabase/supabase_service.dart';
 import '../domain/transaction_model.dart';
 import 'transaction_repository.dart';
 
@@ -7,12 +8,16 @@ import 'transaction_repository.dart';
 class TransactionsNotifier extends Notifier<List<Transaction>> {
   @override
   List<Transaction> build() {
-    // Seed with initial mock transactions for instant display & widget test compatibility
+    final isLive = ref.watch(supabaseClientProvider) != null;
+
+    if (isLive) {
+      _loadLiveTransactions();
+      return <Transaction>[];
+    }
+
+    // Seed with initial mock transactions only for unauthenticated/offline widget tests
     final initialList = List<Transaction>.from(initialMockTransactions);
-
-    // Asynchronously fetch live transactions from Supabase
     _loadLiveTransactions();
-
     return initialList;
   }
 
@@ -21,9 +26,7 @@ class TransactionsNotifier extends Notifier<List<Transaction>> {
   Future<void> _loadLiveTransactions() async {
     try {
       final list = await _repo.getTransactions();
-      if (list.isNotEmpty) {
-        state = list;
-      }
+      state = list;
     } catch (_) {
       // Fallback remains active
     }
