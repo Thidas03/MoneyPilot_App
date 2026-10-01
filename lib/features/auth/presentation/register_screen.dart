@@ -142,7 +142,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         CustomTextField(
                           controller: _emailController,
                           label: 'EMAIL ADDRESS',
-                          hintText: 'pilot@example.com',
+                          hintText: 'user@example.com',
                           keyboardType: TextInputType.emailAddress,
                           prefixIcon: const Icon(Icons.mail_outline_rounded),
                           validator: (value) {

@@ -50,6 +50,39 @@ class SecureStorageService {
   Future<void> resetOnboarding() async {
     await _storage.delete(key: _onboardingKey);
   }
+
+  static const String _goalsCachePrefix = 'moneypilot_cached_goals_';
+  static const String _profileCachePrefix = 'moneypilot_cached_profile_';
+
+  /// Save goals cache for a user.
+  Future<void> saveGoalsCache(String userId, String jsonString) async {
+    await _storage.write(key: '$_goalsCachePrefix$userId', value: jsonString);
+  }
+
+  /// Retrieve goals cache for a user.
+  Future<String?> getGoalsCache(String userId) async {
+    return await _storage.read(key: '$_goalsCachePrefix$userId');
+  }
+
+  /// Delete goals cache for a user.
+  Future<void> clearGoalsCache(String userId) async {
+    await _storage.delete(key: '$_goalsCachePrefix$userId');
+  }
+
+  /// Save profile cache for a user.
+  Future<void> saveUserProfileCache(String userId, String jsonString) async {
+    await _storage.write(key: '$_profileCachePrefix$userId', value: jsonString);
+  }
+
+  /// Retrieve profile cache for a user.
+  Future<String?> getUserProfileCache(String userId) async {
+    return await _storage.read(key: '$_profileCachePrefix$userId');
+  }
+
+  /// Delete profile cache for a user.
+  Future<void> clearUserProfileCache(String userId) async {
+    await _storage.delete(key: '$_profileCachePrefix$userId');
+  }
 }
 
 /// Riverpod provider for [SecureStorageService].

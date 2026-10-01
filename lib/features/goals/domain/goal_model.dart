@@ -150,7 +150,7 @@ class Goal {
   /// Parses a Supabase row map into a Goal domain model.
   factory Goal.fromMap(Map<String, dynamic> map) {
     DateTime parsedDeadline;
-    final rawDeadline = map['deadline'];
+    final rawDeadline = map['target_date'] ?? map['deadline'];
     if (rawDeadline is DateTime) {
       parsedDeadline = rawDeadline;
     } else if (rawDeadline != null) {
@@ -167,8 +167,8 @@ class Goal {
       currentAmount: (map['current_amount'] as num?)?.toDouble() ?? 0.0,
       deadlineDate: parsedDeadline,
       note: map['note']?.toString(),
-      iconName: map['icon']?.toString() ?? 'flag_rounded',
-      colorHex: map['color']?.toString() ?? '#005C46',
+      iconName: map['icon']?.toString() ?? map['icon_name']?.toString() ?? 'flag_rounded',
+      colorHex: map['color_hex']?.toString() ?? map['color']?.toString() ?? '#005C46',
       createdAt: map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
       updatedAt: map['updated_at'] != null ? DateTime.tryParse(map['updated_at'].toString()) : null,
     );
@@ -186,6 +186,30 @@ class Goal {
       if (note != null) 'note': note,
       'icon': iconName,
       'color': colorHex,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Formats the Goal model into a clean map matching the Supabase `savings_goals` table schema.
+  Map<String, dynamic> toSavingsGoalsMap({String? currentUserId, bool includeNote = true}) {
+    final effectiveUserId = (currentUserId != null && currentUserId.isNotEmpty)
+        ? currentUserId
+        : (userId.isNotEmpty ? userId : null);
+    final targetDateStr = deadlineDate.toIso8601String().split('T').first;
+    final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+    return {
+      if (id.isNotEmpty && isUuid.hasMatch(id)) 'id': id,
+      if (effectiveUserId != null) 'user_id': effectiveUserId,
+      'title': title.trim(),
+      'target_amount': targetAmount,
+      'current_amount': currentAmount,
+      'target_date': targetDateStr,
+      'icon': iconName,
+      'color_hex': colorHex,
+      'status': isCompleted ? 'completed' : 'in_progress',
+      if (includeNote && note != null && note!.trim().isNotEmpty) 'note': note!.trim(),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };

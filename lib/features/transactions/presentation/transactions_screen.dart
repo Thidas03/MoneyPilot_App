@@ -112,7 +112,7 @@ class TransactionsScreen extends ConsumerWidget {
                     onPressed: () => context.push('/transactions/add'),
                     icon: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
                     label: const Text(
-                      'Add Entry',
+                      'Add Transaction',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -280,7 +280,7 @@ class TransactionsScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Try clearing your search or add a new entry',
+                          'Try clearing your search or add a new transaction',
                           style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                         ),
                       ],

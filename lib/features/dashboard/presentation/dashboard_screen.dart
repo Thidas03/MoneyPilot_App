@@ -152,7 +152,7 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                         SizedBox(height: 6),
                         Text(
-                          'Your flight path looks smooth. Manage your investments & track finances.',
+                          'Track your expenses, manage your budgets, and reach your goals.',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -171,7 +171,7 @@ class DashboardScreen extends ConsumerWidget {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.flight_takeoff_rounded,
+                      Icons.account_balance_wallet_rounded,
                       color: Colors.white,
                       size: 28,
                     ),

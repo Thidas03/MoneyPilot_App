@@ -71,7 +71,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         tag: 'REAL-TIME TRACKING',
         title: 'Take Command of Every Rupee',
         description:
-            'Log income and categorize daily expenses in seconds. Gain complete clarity and master your financial flight path.',
+            'Log income and categorize daily expenses in seconds. Gain complete clarity and master your personal finances.',
         badgeIcon: Icons.insights_rounded,
         badgeColor: AppColors.primary,
         illustrationWidget: _buildTrackingIllustration(context, isDark),
@@ -350,7 +350,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'TOTAL FLIGHT BALANCE',
+                      'TOTAL BALANCE',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -604,7 +604,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Flight Milestones',
+                        'Savings Milestones',
                         style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                         overflow: TextOverflow.ellipsis,
                       ),

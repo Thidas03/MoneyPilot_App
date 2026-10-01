@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/supabase/supabase_service.dart';
+import '../../auth/data/auth_repository.dart';
 import '../domain/goal_contribution_model.dart';
 import '../domain/goal_model.dart';
 import 'goal_repository.dart';
@@ -13,9 +14,12 @@ class GoalsNotifier extends Notifier<List<Goal>> {
   @override
   List<Goal> build() {
     final isLive = ref.watch(supabaseClientProvider) != null;
+    final currentUser = ref.watch(currentUserProvider);
 
     if (isLive) {
-      Future.microtask(() => _loadLiveGoals());
+      if (currentUser != null) {
+        Future.microtask(() => _loadLiveGoals());
+      }
       return <Goal>[];
     }
 

@@ -161,7 +161,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                               CustomTextField(
                                 controller: _emailController,
                                 label: 'EMAIL ADDRESS',
-                                hintText: 'pilot@example.com',
+                                hintText: 'user@example.com',
                                 keyboardType: TextInputType.emailAddress,
                                 prefixIcon: const Icon(Icons.mail_outline_rounded),
                                 validator: (value) {

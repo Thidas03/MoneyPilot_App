@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/storage/secure_storage.dart';
 import '../../../core/supabase/supabase_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/goal_contribution_model.dart';
@@ -110,15 +112,17 @@ abstract class GoalRepository {
   Future<GoalContribution> updateContribution(GoalContribution contribution);
 }
 
-/// Production Supabase goal repository with seamless in-memory fallback.
+/// Production Supabase goal repository with seamless in-memory fallback and local secure cache.
 class SupabaseGoalRepository implements GoalRepository {
   SupabaseGoalRepository({
     this.client,
     required this.authRepository,
+    this.secureStorage,
   });
 
   final SupabaseClient? client;
   final AuthRepository authRepository;
+  final SecureStorageService? secureStorage;
 
   /// In-memory mock storage seeded for offline testing and graceful fallback.
   final List<Goal> _mockGoals = List.from(initialMockGoals);
@@ -130,19 +134,56 @@ class SupabaseGoalRepository implements GoalRepository {
 
   String? get _currentUserId => authRepository.getCurrentUser()?.id;
 
+  static bool _isValidUuid(String str) {
+    return RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(str);
+  }
+
+  Future<void> _saveLocalCache(String uid, List<Goal> goals) async {
+    if (secureStorage == null) return;
+    try {
+      final jsonList = goals.map((g) => g.toMap()).toList();
+      await secureStorage!.saveGoalsCache(uid, jsonEncode(jsonList));
+    } catch (_) {}
+  }
+
+  Future<List<Goal>> _loadLocalCache(String uid) async {
+    if (secureStorage == null) return <Goal>[];
+    try {
+      final raw = await secureStorage!.getGoalsCache(uid);
+      if (raw != null && raw.isNotEmpty) {
+        final list = (jsonDecode(raw) as List)
+            .map((item) => Goal.fromMap(item as Map<String, dynamic>))
+            .toList();
+        return list;
+      }
+    } catch (_) {}
+    return <Goal>[];
+  }
+
   // --- Goal Operations ---
 
   @override
   Future<List<Goal>> getGoals() async {
+    final uid = _currentUserId;
+
     if (!_isLive) {
+      if (uid != null) {
+        final cached = await _loadLocalCache(uid);
+        if (cached.isNotEmpty) {
+          _mockGoals.clear();
+          _mockGoals.addAll(cached);
+          return cached;
+        }
+      }
       return List.unmodifiable(_mockGoals);
     }
 
-    try {
-      final uid = _currentUserId;
-      if (uid == null) return <Goal>[];
+    if (uid == null) {
+      return <Goal>[];
+    }
 
-      // Attempt querying 'savings_goals' (schema table name) with fallback to 'goals'
+    try {
+      List<Goal> goals;
       try {
         final response = await client!
             .from('savings_goals')
@@ -150,30 +191,41 @@ class SupabaseGoalRepository implements GoalRepository {
             .eq('user_id', uid)
             .order('target_date', ascending: true);
         final rows = response as List<dynamic>;
-        return rows.map((r) => Goal.fromMap(r as Map<String, dynamic>)).toList();
-      } catch (_) {
+        goals = rows.map((r) => Goal.fromMap(r as Map<String, dynamic>)).toList();
+      } catch (err) {
+        debugPrint('[GoalRepository] savings_goals select error, trying goals table: $err');
         final response = await client!
             .from('goals')
             .select()
             .eq('user_id', uid)
             .order('deadline', ascending: true);
         final rows = response as List<dynamic>;
-        return rows.map((r) => Goal.fromMap(r as Map<String, dynamic>)).toList();
+        goals = rows.map((r) => Goal.fromMap(r as Map<String, dynamic>)).toList();
       }
+
+      _mockGoals.clear();
+      _mockGoals.addAll(goals);
+      await _saveLocalCache(uid, goals);
+      return goals;
     } catch (e, st) {
       debugPrint('[GoalRepository] Live fetch error: $e\n$st');
-      return <Goal>[];
+      final cached = await _loadLocalCache(uid);
+      if (cached.isNotEmpty) {
+        _mockGoals.clear();
+        _mockGoals.addAll(cached);
+        return cached;
+      }
+      return List.unmodifiable(_mockGoals.where((g) => g.userId == uid || g.userId.isEmpty));
     }
   }
 
   @override
   Future<Goal?> getGoalById(String id) async {
-    if (!_isLive) {
-      try {
-        return _mockGoals.firstWhere((g) => g.id == id);
-      } catch (_) {
-        return null;
-      }
+    final cached = _mockGoals.cast<Goal?>().firstWhere((g) => g?.id == id, orElse: () => null);
+    if (cached != null) return cached;
+
+    if (!_isLive || !_isValidUuid(id)) {
+      return null;
     }
 
     try {
@@ -182,58 +234,105 @@ class SupabaseGoalRepository implements GoalRepository {
         var query = client!.from('savings_goals').select().eq('id', id);
         if (uid != null) query = query.eq('user_id', uid);
         final response = await query.maybeSingle();
-        if (response != null) return Goal.fromMap(response);
+        if (response != null) {
+          final g = Goal.fromMap(response);
+          _mockGoals.add(g);
+          return g;
+        }
       } catch (_) {
         var query = client!.from('goals').select().eq('id', id);
         if (uid != null) query = query.eq('user_id', uid);
         final response = await query.maybeSingle();
-        if (response != null) return Goal.fromMap(response);
+        if (response != null) {
+          final g = Goal.fromMap(response);
+          _mockGoals.add(g);
+          return g;
+        }
       }
-      return _mockGoals.cast<Goal?>().firstWhere((g) => g?.id == id, orElse: () => null);
+      return null;
     } catch (e, st) {
       debugPrint('[GoalRepository] Get by ID error: $e\n$st');
-      return _mockGoals.cast<Goal?>().firstWhere((g) => g?.id == id, orElse: () => null);
+      return null;
     }
   }
 
   @override
   Future<Goal> createGoal(Goal goal) async {
+    final uid = _currentUserId ?? (goal.userId.isNotEmpty ? goal.userId : null);
     final effectiveId = goal.id.isEmpty
         ? 'goal-${DateTime.now().millisecondsSinceEpoch}'
         : goal.id;
     final preparedGoal = goal.copyWith(
       id: effectiveId,
-      userId: _currentUserId ?? goal.userId,
+      userId: uid ?? goal.userId,
     );
 
     if (!_isLive) {
       _mockGoals.add(preparedGoal);
+      if (uid != null) {
+        await _saveLocalCache(uid, _mockGoals);
+      }
       return preparedGoal;
     }
 
     try {
-      final payload = preparedGoal.toMap(currentUserId: _currentUserId);
       Map<String, dynamic> response;
       try {
+        final payloadWithNote = preparedGoal.toSavingsGoalsMap(
+          currentUserId: uid,
+          includeNote: preparedGoal.note != null && preparedGoal.note!.trim().isNotEmpty,
+        );
         response = await client!
             .from('savings_goals')
-            .insert(payload)
+            .insert(payloadWithNote)
             .select()
             .single();
-      } catch (_) {
-        response = await client!
-            .from('goals')
-            .insert(payload)
-            .select()
-            .single();
+      } catch (err) {
+        debugPrint('[GoalRepository] savings_goals insert with note error: $err, retrying without note');
+        final payloadNoNote = preparedGoal.toSavingsGoalsMap(
+          currentUserId: uid,
+          includeNote: false,
+        );
+        try {
+          response = await client!
+              .from('savings_goals')
+              .insert(payloadNoNote)
+              .select()
+              .single();
+        } catch (_) {
+          final fallbackPayload = preparedGoal.toMap(currentUserId: uid);
+          if (!_isValidUuid(preparedGoal.id)) {
+            fallbackPayload.remove('id');
+          }
+          response = await client!
+              .from('goals')
+              .insert(fallbackPayload)
+              .select()
+              .single();
+        }
       }
 
       final created = Goal.fromMap(response);
-      _mockGoals.add(created);
-      return created;
+      final finalGoal = (created.note == null && preparedGoal.note != null)
+          ? created.copyWith(note: preparedGoal.note)
+          : created;
+
+      final existingIndex = _mockGoals.indexWhere((g) => g.id == preparedGoal.id || g.id == finalGoal.id);
+      if (existingIndex != -1) {
+        _mockGoals[existingIndex] = finalGoal;
+      } else {
+        _mockGoals.add(finalGoal);
+      }
+      if (uid != null) {
+        await _saveLocalCache(uid, _mockGoals);
+      }
+      return finalGoal;
     } catch (e, st) {
       debugPrint('[GoalRepository] Live create error, saving locally: $e\n$st');
       _mockGoals.add(preparedGoal);
+      if (uid != null) {
+        await _saveLocalCache(uid, _mockGoals);
+      }
       return preparedGoal;
     }
   }
@@ -241,48 +340,76 @@ class SupabaseGoalRepository implements GoalRepository {
   @override
   Future<Goal> updateGoal(Goal goal) async {
     final updatedGoal = goal.copyWith(updatedAt: DateTime.now());
+    final uid = _currentUserId ?? (goal.userId.isNotEmpty ? goal.userId : null);
 
-    if (!_isLive) {
-      final idx = _mockGoals.indexWhere((g) => g.id == goal.id);
-      if (idx != -1) {
-        _mockGoals[idx] = updatedGoal;
-      } else {
-        _mockGoals.add(updatedGoal);
-      }
+    final idx = _mockGoals.indexWhere((g) => g.id == goal.id);
+    if (idx != -1) {
+      _mockGoals[idx] = updatedGoal;
+    } else {
+      _mockGoals.add(updatedGoal);
+    }
+    if (uid != null) {
+      await _saveLocalCache(uid, _mockGoals);
+    }
+
+    if (!_isLive || !_isValidUuid(goal.id)) {
       return updatedGoal;
     }
 
     try {
-      final payload = updatedGoal.toMap(currentUserId: _currentUserId);
       Map<String, dynamic> response;
       try {
+        final payloadWithNote = updatedGoal.toSavingsGoalsMap(
+          currentUserId: uid,
+          includeNote: updatedGoal.note != null && updatedGoal.note!.trim().isNotEmpty,
+        );
+        payloadWithNote.remove('id');
         response = await client!
             .from('savings_goals')
-            .update(payload)
+            .update(payloadWithNote)
             .eq('id', goal.id)
             .select()
             .single();
-      } catch (_) {
-        response = await client!
-            .from('goals')
-            .update(payload)
-            .eq('id', goal.id)
-            .select()
-            .single();
+      } catch (err) {
+        final payloadNoNote = updatedGoal.toSavingsGoalsMap(
+          currentUserId: uid,
+          includeNote: false,
+        );
+        payloadNoNote.remove('id');
+        try {
+          response = await client!
+              .from('savings_goals')
+              .update(payloadNoNote)
+              .eq('id', goal.id)
+              .select()
+              .single();
+        } catch (_) {
+          final fallbackPayload = updatedGoal.toMap(currentUserId: uid);
+          fallbackPayload.remove('id');
+          response = await client!
+              .from('goals')
+              .update(fallbackPayload)
+              .eq('id', goal.id)
+              .select()
+              .single();
+        }
       }
 
       final result = Goal.fromMap(response);
-      final idx = _mockGoals.indexWhere((g) => g.id == goal.id);
-      if (idx != -1) {
-        _mockGoals[idx] = result;
+      final finalGoal = (result.note == null && updatedGoal.note != null)
+          ? result.copyWith(note: updatedGoal.note)
+          : result;
+
+      final mIdx = _mockGoals.indexWhere((g) => g.id == goal.id);
+      if (mIdx != -1) {
+        _mockGoals[mIdx] = finalGoal;
       }
-      return result;
+      if (uid != null) {
+        await _saveLocalCache(uid, _mockGoals);
+      }
+      return finalGoal;
     } catch (e, st) {
       debugPrint('[GoalRepository] Live update error, updating locally: $e\n$st');
-      final idx = _mockGoals.indexWhere((g) => g.id == goal.id);
-      if (idx != -1) {
-        _mockGoals[idx] = updatedGoal;
-      }
       return updatedGoal;
     }
   }
@@ -291,8 +418,12 @@ class SupabaseGoalRepository implements GoalRepository {
   Future<void> deleteGoal(String id) async {
     _mockGoals.removeWhere((g) => g.id == id);
     _mockContributions.removeWhere((c) => c.goalId == id);
+    final uid = _currentUserId;
+    if (uid != null) {
+      await _saveLocalCache(uid, _mockGoals);
+    }
 
-    if (!_isLive) return;
+    if (!_isLive || !_isValidUuid(id)) return;
 
     try {
       try {
@@ -356,14 +487,21 @@ class SupabaseGoalRepository implements GoalRepository {
         currentAmount: existingGoal.currentAmount + prepared.amount,
         updatedAt: DateTime.now(),
       );
+      final uid = _currentUserId;
+      if (uid != null) {
+        await _saveLocalCache(uid, _mockGoals);
+      }
     }
 
-    if (!_isLive) {
+    if (!_isLive || !_isValidUuid(prepared.goalId)) {
       return prepared;
     }
 
     try {
       final payload = prepared.toMap(currentUserId: _currentUserId);
+      if (!_isValidUuid(prepared.id)) {
+        payload.remove('id');
+      }
       final response = await client!
           .from('goal_contributions')
           .insert(payload)
@@ -385,6 +523,10 @@ class SupabaseGoalRepository implements GoalRepository {
         final updatedGoal = await getGoalById(prepared.goalId);
         if (updatedGoal != null && goalIdx != -1) {
           _mockGoals[goalIdx] = updatedGoal;
+          final uid = _currentUserId;
+          if (uid != null) {
+            await _saveLocalCache(uid, _mockGoals);
+          }
         }
       } catch (_) {}
 
@@ -397,7 +539,7 @@ class SupabaseGoalRepository implements GoalRepository {
 
   @override
   Future<List<GoalContribution>> getContributions(String goalId) async {
-    if (!_isLive) {
+    if (!_isLive || !_isValidUuid(goalId)) {
       final list = _mockContributions.where((c) => c.goalId == goalId).toList();
       list.sort((a, b) => b.date.compareTo(a.date));
       return List.unmodifiable(list);
@@ -418,13 +560,15 @@ class SupabaseGoalRepository implements GoalRepository {
       return list;
     } catch (e, st) {
       debugPrint('[GoalRepository] Live getContributions error: $e\n$st');
-      return <GoalContribution>[];
+      final list = _mockContributions.where((c) => c.goalId == goalId).toList();
+      list.sort((a, b) => b.date.compareTo(a.date));
+      return List.unmodifiable(list);
     }
   }
 
   @override
   Future<GoalContribution?> getContributionById(String id) async {
-    if (!_isLive) {
+    if (!_isLive || !_isValidUuid(id)) {
       try {
         return _mockContributions.firstWhere((c) => c.id == id);
       } catch (_) {
@@ -476,9 +620,13 @@ class SupabaseGoalRepository implements GoalRepository {
         currentAmount: newCurrent,
         updatedAt: DateTime.now(),
       );
+      final uid = _currentUserId;
+      if (uid != null) {
+        await _saveLocalCache(uid, _mockGoals);
+      }
     }
 
-    if (!_isLive) return;
+    if (!_isLive || !_isValidUuid(contributionId)) return;
 
     try {
       // The Supabase trigger `on_goal_contribution_change` automatically decrements
@@ -490,6 +638,10 @@ class SupabaseGoalRepository implements GoalRepository {
         final synced = await getGoalById(goalId);
         if (synced != null && goalIdx != -1) {
           _mockGoals[goalIdx] = synced;
+          final uid = _currentUserId;
+          if (uid != null) {
+            await _saveLocalCache(uid, _mockGoals);
+          }
         }
       } catch (_) {}
     } catch (e, st) {
@@ -517,12 +669,17 @@ class SupabaseGoalRepository implements GoalRepository {
         currentAmount: newCurrent,
         updatedAt: DateTime.now(),
       );
+      final uid = _currentUserId;
+      if (uid != null) {
+        await _saveLocalCache(uid, _mockGoals);
+      }
     }
 
-    if (!_isLive) return contribution;
+    if (!_isLive || !_isValidUuid(contribution.id)) return contribution;
 
     try {
       final payload = contribution.toMap(currentUserId: _currentUserId);
+      payload.remove('id');
       final response = await client!
           .from('goal_contributions')
           .update(payload)
@@ -543,8 +700,10 @@ class SupabaseGoalRepository implements GoalRepository {
 final goalRepositoryProvider = Provider<GoalRepository>((ref) {
   final client = ref.watch(supabaseClientProvider);
   final authRepo = ref.watch(authRepositoryProvider);
+  final storage = ref.watch(secureStorageProvider);
   return SupabaseGoalRepository(
     client: client,
     authRepository: authRepo,
+    secureStorage: storage,
   );
 });

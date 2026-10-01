@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     avatar_url TEXT,
     currency_code TEXT NOT NULL DEFAULT 'LKR',
     currency_symbol TEXT NOT NULL DEFAULT 'Rs.',
-    flight_badge TEXT NOT NULL DEFAULT 'FLIGHT CAPTAIN',
+    flight_badge TEXT NOT NULL DEFAULT 'ACTIVE MEMBER',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS public.savings_goals (
     icon TEXT NOT NULL DEFAULT 'flag_rounded',
     color_hex TEXT NOT NULL DEFAULT '#005C46',
     status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed', 'paused')),
+    note TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:moneypilot/app.dart';
+import 'package:moneypilot/core/storage/secure_storage.dart';
+import 'package:moneypilot/features/auth/data/auth_repository.dart';
 import 'package:moneypilot/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:moneypilot/features/goals/data/goal_repository.dart';
 import 'package:moneypilot/features/goals/data/goals_provider.dart';
 import 'package:moneypilot/features/goals/domain/goal_model.dart';
 import 'package:moneypilot/features/goals/presentation/add_goal_screen.dart';
@@ -185,6 +189,46 @@ void main() {
       expect(reconstructed.colorHex, goal.colorHex);
     });
 
+    test('toSavingsGoalsMap and fromMap match Supabase savings_goals schema', () {
+      final now = DateTime(2026, 9, 15, 10, 30);
+      final goal = Goal(
+        id: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+        userId: 'usr-123',
+        title: 'Boeing 737 Type Rating',
+        targetAmount: 500000,
+        currentAmount: 150000,
+        deadlineDate: DateTime(2027, 3, 31),
+        note: 'Sim sessions in Singapore',
+        iconName: 'flight_takeoff_rounded',
+        colorHex: '#005C46',
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final dbMap = goal.toSavingsGoalsMap(currentUserId: 'usr-123');
+      expect(dbMap['id'], '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+      expect(dbMap['user_id'], 'usr-123');
+      expect(dbMap['title'], 'Boeing 737 Type Rating');
+      expect(dbMap['target_amount'], 500000.0);
+      expect(dbMap['current_amount'], 150000.0);
+      expect(dbMap['target_date'], '2027-03-31');
+      expect(dbMap['color_hex'], '#005C46');
+      expect(dbMap['status'], 'in_progress');
+      expect(dbMap['note'], 'Sim sessions in Singapore');
+
+      // Non-UUID client IDs should be omitted from insert map so Postgres generates a real UUID
+      final clientGoal = goal.copyWith(id: 'goal-1727801234567');
+      final insertMap = clientGoal.toSavingsGoalsMap();
+      expect(insertMap.containsKey('id'), isFalse);
+
+      // fromMap should parse Supabase schema columns: target_date and color_hex
+      final reconstructed = Goal.fromMap(dbMap);
+      expect(reconstructed.id, goal.id);
+      expect(reconstructed.deadlineDate, DateTime(2027, 3, 31));
+      expect(reconstructed.colorHex, '#005C46');
+      expect(reconstructed.iconName, 'flight_takeoff_rounded');
+    });
+
     test('Goal.legacy constructor parses string deadline and assigns defaults', () {
       final legacy = Goal.legacy(
         id: 'leg-1',
@@ -205,6 +249,48 @@ void main() {
   });
 
   group('Goals Riverpod Notifier & CRUD Tests', () {
+    test('Goals are cached in secure storage and reloadable across app sessions', () async {
+      final storage = SecureStorageService();
+      final authRepo = SupabaseAuthRepository(
+        client: null,
+        secureStorage: storage,
+      );
+      authRepo.setMockSessionForTesting(
+        user: User.fromJson(<String, dynamic>{
+          'id': 'pilot-session-123',
+          'email': 'pilot@test.com',
+          'aud': 'authenticated',
+          'app_metadata': <String, dynamic>{'provider': 'email'},
+          'user_metadata': <String, dynamic>{'full_name': 'Test Pilot'},
+          'created_at': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      final repo = SupabaseGoalRepository(
+        client: null,
+        authRepository: authRepo,
+        secureStorage: storage,
+      );
+
+      // Create new goal
+      final goal = Goal(
+        id: '',
+        title: 'New Avionics Upgrade',
+        targetAmount: 300000,
+        deadlineDate: DateTime(2027, 5, 20),
+      );
+      final created = await repo.createGoal(goal);
+      expect(created.title, 'New Avionics Upgrade');
+
+      // Simulate app restart / fresh repository instance with same user
+      final freshRepo = SupabaseGoalRepository(
+        client: null,
+        authRepository: authRepo,
+        secureStorage: storage,
+      );
+      final reloaded = await freshRepo.getGoals();
+      expect(reloaded.any((g) => g.title == 'New Avionics Upgrade'), isTrue);
+    });
     test('Initial mock goals are seeded properly', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -563,6 +649,54 @@ void main() {
       // Should navigate to GoalsScreen
       expect(find.byType(GoalsScreen), findsOneWidget);
       expect(find.text('Track Your Financial Dreams'), findsOneWidget);
+    });
+
+    testWidgets('Goal deadline calendar restricts selecting past days', (tester) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MoneyPilotApp(),
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 1500));
+      await tester.pumpAndSettle();
+
+      // Navigate to Goals -> Add Goal
+      await tester.tap(find.text('Goals'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('add_goal_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AddGoalScreen), findsOneWidget);
+
+      // Scroll to deadline field and tap it
+      await tester.ensureVisible(find.byKey(const Key('goal_deadline_field')));
+      await tester.tap(find.byKey(const Key('goal_deadline_field')));
+      await tester.pumpAndSettle();
+
+      // DatePickerDialog is shown
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+      final datePicker = tester.widget<DatePickerDialog>(find.byType(DatePickerDialog));
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+
+      // Verify firstDate is today, not in the past
+      expect(datePicker.firstDate.isBefore(today), isFalse);
+      expect(datePicker.firstDate, equals(today));
+
+      // Verify selectableDayPredicate forbids past days but permits today and future
+      if (datePicker.selectableDayPredicate != null) {
+        final yesterday = today.subtract(const Duration(days: 1));
+        final tomorrow = today.add(const Duration(days: 1));
+        expect(datePicker.selectableDayPredicate!(yesterday), isFalse);
+        expect(datePicker.selectableDayPredicate!(today), isTrue);
+        expect(datePicker.selectableDayPredicate!(tomorrow), isTrue);
+      }
+
+      // Close the picker by tapping Cancel
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
     });
   });
 }

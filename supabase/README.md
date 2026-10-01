@@ -4,10 +4,20 @@ This directory contains the database schema and migrations for MoneyPilot.
 
 ## Files
 
-- `schema.sql`: Complete PostgreSQL schema ready to be copied into the Supabase SQL Editor.
+- `schema.sql`: Complete PostgreSQL schema ready to be copied into the Supabase SQL Editor for a fresh database.
 - `migrations/20260929_init_moneypilot_schema.sql`: Initial versioned migration file.
+- `migrations/20261001_add_note_to_savings_goals.sql`: Adds the `note` column to `savings_goals`.
 
 ---
+
+### Updating an Existing Database (Migration)
+If you already have a running Supabase project:
+1. In the Supabase Dashboard, go to **SQL Editor** -> **New Query**.
+2. Run the SQL statement from `migrations/20261001_add_note_to_savings_goals.sql`:
+   ```sql
+   ALTER TABLE public.savings_goals ADD COLUMN IF NOT EXISTS note TEXT;
+   ```
+3. Click **Run**.
 
 ## Step-by-Step Setup Guide
 

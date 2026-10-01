@@ -103,7 +103,8 @@ class _AddGoalScreenState extends ConsumerState<AddGoalScreen> {
 
   Future<void> _pickDeadline() async {
     final now = DateTime.now();
-    final firstDate = DateTime(now.year - 2, 1, 1);
+    final today = DateTime(now.year, now.month, now.day);
+    final firstDate = today;
     final lastDate = DateTime(now.year + 20, 12, 31);
     final initial = _selectedDeadline ?? DateTime(now.year + 1, now.month, now.day);
 
@@ -112,6 +113,10 @@ class _AddGoalScreenState extends ConsumerState<AddGoalScreen> {
       initialDate: initial.isBefore(firstDate) ? firstDate : (initial.isAfter(lastDate) ? lastDate : initial),
       firstDate: firstDate,
       lastDate: lastDate,
+      selectableDayPredicate: (DateTime day) {
+        final dayOnly = DateTime(day.year, day.month, day.day);
+        return !dayOnly.isBefore(today);
+      },
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -201,6 +206,25 @@ class _AddGoalScreenState extends ConsumerState<AddGoalScreen> {
       return;
     }
 
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final deadlineDay = DateTime(
+      _selectedDeadline!.year,
+      _selectedDeadline!.month,
+      _selectedDeadline!.day,
+    );
+    if (deadlineDay.isBefore(today)) {
+      if (!isEditing || (widget.existingGoal != null && widget.existingGoal!.deadlineDate != _selectedDeadline)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Target deadline cannot be in the past'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    }
+
     final rawTarget = _targetAmountController.text.replaceAll(',', '').trim();
     final target = double.tryParse(rawTarget) ?? 0.0;
 
@@ -281,7 +305,7 @@ class _AddGoalScreenState extends ConsumerState<AddGoalScreen> {
     final titleText = isEditing ? 'Edit Goal' : 'Add Goal';
     final subtitleText = isEditing
         ? 'Update savings target and details for ${_titleController.text.isNotEmpty ? _titleController.text : "your goal"}.'
-        : 'Set financial targets to keep your flight plan on track.';
+        : 'Set financial targets to keep your savings on track.';
 
     String formattedDeadline = 'Select Deadline';
     if (_selectedDeadline != null) {
@@ -606,7 +630,7 @@ class _AddGoalScreenState extends ConsumerState<AddGoalScreen> {
                   controller: _noteController,
                   maxLines: 3,
                   decoration: _buildInputDecoration(
-                    hintText: 'Add flight plans, milestones, or target descriptions...',
+                    hintText: 'Add notes, milestones, or target descriptions...',
                   ),
                   style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A)),
                 ),

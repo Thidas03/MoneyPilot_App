@@ -529,7 +529,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                       CustomTextField(
                         controller: _noteController,
                         label: 'NOTE (OPTIONAL)',
-                        hintText: 'Add flight logs or receipts description...',
+                        hintText: 'Add notes or receipt description...',
                         maxLines: 2,
                         prefixIcon: const Icon(Icons.description_outlined),
                       ),

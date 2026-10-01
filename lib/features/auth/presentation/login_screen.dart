@@ -96,7 +96,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Log in to navigate your financial flight path',
+                  'Log in to manage your personal finances',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
@@ -112,7 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         CustomTextField(
                           controller: _emailController,
                           label: 'EMAIL ADDRESS',
-                          hintText: 'pilot@example.com',
+                          hintText: 'user@example.com',
                           keyboardType: TextInputType.emailAddress,
                           prefixIcon: const Icon(Icons.mail_outline_rounded),
                           validator: (value) {

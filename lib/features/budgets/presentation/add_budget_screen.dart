@@ -311,7 +311,7 @@ class _AddBudgetScreenState extends ConsumerState<AddBudgetScreen> {
         ? 'Update spending limit for $_selectedCategory.'
         : (_selectedScope == BudgetScope.overall
             ? 'Set overall monthly target spending limit.'
-            : 'Set spending guardrails to keep your flight plan on track.');
+            : 'Set spending guardrails to keep your finances on track.');
 
     // Fetch dynamic category list from categoriesProvider to include custom user categories
     final asyncCategories = ref.watch(categoriesProvider);

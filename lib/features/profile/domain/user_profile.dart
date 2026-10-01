@@ -17,10 +17,19 @@ class UserProfile {
     this.avatarUrl,
     this.currencyCode = 'LKR',
     this.currencySymbol = 'Rs.',
-    this.flightBadge = 'Flight Captain',
+    this.flightBadge = 'Active Member',
     this.createdAt,
     this.updatedAt,
   });
+
+  /// User-facing badge that cleanses legacy pilot/flight terminology.
+  String get memberBadge {
+    final upper = flightBadge.trim().toUpperCase();
+    if (upper.isEmpty || upper == 'FLIGHT CAPTAIN' || upper == 'PILOT') {
+      return 'ACTIVE MEMBER';
+    }
+    return upper;
+  }
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
@@ -30,7 +39,7 @@ class UserProfile {
       avatarUrl: json['avatar_url'] as String?,
       currencyCode: json['currency_code'] as String? ?? 'LKR',
       currencySymbol: json['currency_symbol'] as String? ?? 'Rs.',
-      flightBadge: json['flight_badge'] as String? ?? 'Flight Captain',
+      flightBadge: json['flight_badge'] as String? ?? 'Active Member',
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) : null,
       updatedAt: json['updated_at'] != null ? DateTime.tryParse(json['updated_at'].toString()) : null,
     );
@@ -76,11 +85,11 @@ class UserProfile {
 
   /// Default mock profile when Supabase is unconfigured or in demo mode.
   static const mock = UserProfile(
-    id: 'mock-pilot-001',
-    email: 'pilot@moneypilot.com',
-    fullName: 'Chief Pilot',
+    id: 'mock-user-001',
+    email: 'user@moneypilot.com',
+    fullName: 'MoneyPilot User',
     currencyCode: 'LKR',
     currencySymbol: 'Rs.',
-    flightBadge: 'FLIGHT CAPTAIN',
+    flightBadge: 'ACTIVE MEMBER',
   );
 }

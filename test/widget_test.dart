@@ -436,10 +436,11 @@ void main() {
     (tester.widget(profileButton) as IconButton).onPressed!();
     await tester.pumpAndSettle();
 
-    expect(find.text('Pilot Profile'), findsOneWidget);
-    expect(find.text('Chief Pilot'), findsOneWidget);
-    expect(find.text('pilot@moneypilot.com'), findsOneWidget);
-    expect(find.text('FLIGHT CAPTAIN'), findsOneWidget);
+    expect(find.text('User Profile'), findsOneWidget);
+    expect(find.text('Chief Pilot'), findsWidgets);
+    expect(find.text('pilot@moneypilot.com'), findsWidgets);
+    expect(find.text('ACTIVE MEMBER'), findsOneWidget);
+    expect(find.text('USER PROFILE DETAILS'), findsOneWidget);
 
     // Back to dashboard
     await tester.tap(find.text('Back to Dashboard'));
@@ -456,7 +457,7 @@ void main() {
     (tester.widget(profileButton) as IconButton).onPressed!();
     await tester.pumpAndSettle();
 
-    expect(find.text('Pilot Profile'), findsOneWidget);
+    expect(find.text('User Profile'), findsOneWidget);
     final logoutButton = find.byKey(const Key('profile_logout_button'));
     expect(logoutButton, findsOneWidget);
 
@@ -465,5 +466,38 @@ void main() {
 
     expect(find.text('Welcome Back'), findsOneWidget);
     expect(find.text('Log In'), findsWidgets);
+  });
+
+  testWidgets('Profile: Edit Profile opens modal, updates full name and persists', (WidgetTester tester) async {
+    await loadDashboard(tester);
+
+    final profileButton = find.byKey(const Key('dashboard_profile_button'));
+    expect(profileButton, findsOneWidget);
+    (tester.widget(profileButton) as IconButton).onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('User Profile'), findsOneWidget);
+    final editButton = find.byKey(const Key('edit_profile_button'));
+    expect(editButton, findsOneWidget);
+
+    await tester.tap(editButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Profile'), findsWidgets);
+    expect(find.text('Update your personal profile details'), findsOneWidget);
+    expect(find.text('Save Changes'), findsOneWidget);
+
+    // Enter updated full name
+    final nameInput = find.byType(TextFormField).first;
+    await tester.enterText(nameInput, 'Alex Mercer');
+    await tester.pumpAndSettle();
+
+    // Tap Save Changes
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    // Verify modal closed and new name is displayed
+    expect(find.text('Alex Mercer'), findsWidgets);
+    expect(find.text('Profile updated successfully!'), findsOneWidget);
   });
 }
