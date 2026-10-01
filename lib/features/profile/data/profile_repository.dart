@@ -191,9 +191,9 @@ class SupabaseProfileRepository implements ProfileRepository {
         'full_name': fullName.trim(),
         'updated_at': DateTime.now().toUtc().toIso8601String(),
         if (email != null && email.isNotEmpty) 'email': email.trim(),
-        if (avatarUrl != null) 'avatar_url': avatarUrl,
-        if (currencyCode != null) 'currency_code': currencyCode,
-        if (currencySymbol != null) 'currency_symbol': currencySymbol,
+        if (avatarUrl != null && avatarUrl.isNotEmpty) 'avatar_url': avatarUrl,
+        if (currencyCode != null && currencyCode.isNotEmpty) 'currency_code': currencyCode,
+        if (currencySymbol != null && currencySymbol.isNotEmpty) 'currency_symbol': currencySymbol,
       };
 
       try {

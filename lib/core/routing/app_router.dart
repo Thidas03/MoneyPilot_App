@@ -23,6 +23,9 @@ import '../../features/goals/presentation/add_goal_screen.dart';
 import '../../features/goals/presentation/goal_detail_screen.dart';
 
 import '../../features/goals/presentation/goals_screen.dart';
+import '../../features/reminders/data/models/reminder_model.dart';
+import '../../features/reminders/presentation/add_reminder_screen.dart';
+import '../../features/reminders/presentation/reminders_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 
 
@@ -168,6 +171,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final idParam = state.pathParameters['id'] ?? '';
           return GoalDetailScreen(goalId: idParam);
+        },
+      ),
+
+      // Reminders list screen
+      GoRoute(
+        path: '/reminders',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const RemindersScreen(),
+      ),
+
+      // Add/Edit Reminder screen
+      GoRoute(
+        path: '/reminders/add',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final reminder = state.extra as Reminder?;
+          return AddReminderScreen(existingReminder: reminder);
+        },
+      ),
+      GoRoute(
+        path: '/reminders/edit',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) {
+          final reminder = state.extra as Reminder?;
+          return AddReminderScreen(existingReminder: reminder);
         },
       ),
 

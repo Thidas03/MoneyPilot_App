@@ -12,6 +12,8 @@ import '../../budgets/domain/budget_model.dart';
 import '../../goals/data/goals_provider.dart';
 import '../../transactions/data/transactions_provider.dart';
 import '../../transactions/domain/transaction_model.dart';
+import '../../reminders/data/models/reminder_model.dart';
+import '../../reminders/presentation/providers/reminders_provider.dart';
 
 /// Dynamic MoneyPilot Dashboard screen faithfully implementing the design system and UX.
 class DashboardScreen extends ConsumerWidget {
@@ -29,6 +31,7 @@ class DashboardScreen extends ConsumerWidget {
     final activeBudgetAlerts = ref.watch(activeBudgetAlertsProvider);
     final goals = ref.watch(goalsProvider);
     final monthlyTarget = ref.watch(monthlyBudgetTargetProvider);
+    final upcomingReminders = ref.watch(upcomingRemindersProvider);
 
     final totalBudgetSpent = budgets.fold<double>(0, (sum, b) => sum + b.spent);
     final totalBudgetLimit = budgets.fold<double>(0, (sum, b) => sum + b.amount);
@@ -949,6 +952,122 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+
+            // 10. Upcoming Reminders Preview Card
+            GestureDetector(
+              onTap: () => context.push('/reminders'),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_active_rounded,
+                                color: Color(0xFFD97706),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Upcoming Reminders',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: const [
+                            Text(
+                              'See All',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            SizedBox(width: 2),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: Color(0xFF94A3B8),
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    if (upcomingReminders.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'No upcoming reminders. Stay ahead of your bills.',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () => context.push('/reminders/add'),
+                              borderRadius: BorderRadius.circular(8),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.add, size: 14, color: brandGreen),
+                                    SizedBox(width: 2),
+                                    Text(
+                                      'Add',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: brandGreen,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ...upcomingReminders.take(3).map((reminder) => _buildReminderSubItem(reminder, context, ref)),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
           ],
         ),
@@ -958,6 +1077,132 @@ class DashboardScreen extends ConsumerWidget {
 ),
 ),
 );
+  }
+
+  Widget _buildReminderSubItem(Reminder reminder, BuildContext context, WidgetRef ref) {
+    final categoryColor = reminder.category != null
+        ? AppCategories.getColor(reminder.category!)
+        : const Color(0xFF64748B);
+    final categoryIcon = reminder.category != null
+        ? AppCategories.getIcon(reminder.category!)
+        : Icons.calendar_today_rounded;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => context.push('/reminders/edit', extra: reminder),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: reminder.isOverdue
+                  ? const Color(0xFFFCA5A5)
+                  : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: categoryColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(categoryIcon, size: 18, color: categoryColor),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reminder.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            reminder.relativeDueDescription,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: reminder.isOverdue
+                                  ? const Color(0xFFDC2626)
+                                  : reminder.isDueToday
+                                      ? const Color(0xFFD97706)
+                                      : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ),
+                        if (reminder.frequency != ReminderFrequency.once) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE2E8F0),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              reminder.frequency.displayName,
+                              style: const TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (reminder.amount != null)
+                Text(
+                  CurrencyFormatter.format(reminder.amount!),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              const SizedBox(width: 8),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: Icon(
+                  reminder.isCompleted
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 20,
+                  color: reminder.isCompleted
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFF94A3B8),
+                ),
+                onPressed: () {
+                  ref.read(remindersProvider.notifier).toggleComplete(reminder);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildBudgetSubItem(dynamic budget, BuildContext context) {

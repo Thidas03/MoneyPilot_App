@@ -69,6 +69,8 @@ class SecureStorageService {
     await _storage.delete(key: '$_goalsCachePrefix$userId');
   }
 
+  static const String _remindersCachePrefix = 'moneypilot_cached_reminders_';
+
   /// Save profile cache for a user.
   Future<void> saveUserProfileCache(String userId, String jsonString) async {
     await _storage.write(key: '$_profileCachePrefix$userId', value: jsonString);
@@ -82,6 +84,21 @@ class SecureStorageService {
   /// Delete profile cache for a user.
   Future<void> clearUserProfileCache(String userId) async {
     await _storage.delete(key: '$_profileCachePrefix$userId');
+  }
+
+  /// Save reminders cache for a user.
+  Future<void> saveRemindersCache(String userId, String jsonString) async {
+    await _storage.write(key: '$_remindersCachePrefix$userId', value: jsonString);
+  }
+
+  /// Retrieve reminders cache for a user.
+  Future<String?> getRemindersCache(String userId) async {
+    return await _storage.read(key: '$_remindersCachePrefix$userId');
+  }
+
+  /// Delete reminders cache for a user.
+  Future<void> clearRemindersCache(String userId) async {
+    await _storage.delete(key: '$_remindersCachePrefix$userId');
   }
 }
 

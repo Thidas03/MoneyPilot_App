@@ -201,7 +201,7 @@ class Goal {
 
     return {
       if (id.isNotEmpty && isUuid.hasMatch(id)) 'id': id,
-      if (effectiveUserId != null) 'user_id': effectiveUserId,
+      if (effectiveUserId != null && effectiveUserId.isNotEmpty) 'user_id': effectiveUserId,
       'title': title.trim(),
       'target_amount': targetAmount,
       'current_amount': currentAmount,

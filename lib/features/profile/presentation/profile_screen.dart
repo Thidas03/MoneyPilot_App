@@ -568,7 +568,7 @@ class _EditProfileBottomSheetState extends ConsumerState<_EditProfileBottomSheet
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _selectedCurrencyCode,
+                    initialValue: _selectedCurrencyCode,
                     decoration: InputDecoration(
                       prefixIcon: const Icon(
                         Icons.currency_exchange_rounded,
