@@ -11,6 +11,8 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+emulator_*.png
+screenshot_*.png
 
 # IntelliJ related
 *.iml
