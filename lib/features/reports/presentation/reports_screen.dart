@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../budgets/data/budgets_provider.dart';
 import '../../transactions/data/transactions_provider.dart';
+import '../data/services/report_pdf_service.dart';
 import '../domain/models/models.dart';
 import 'providers/reports_provider.dart';
 import 'widgets/budget_comparison_card.dart';
@@ -19,11 +24,220 @@ import 'widgets/top_spending_card.dart';
 
 /// Reports & Analytics Screen providing comprehensive visualizations,
 /// spending trends, category distributions, budget comparisons, and financial insights.
-class ReportsScreen extends ConsumerWidget {
+class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends ConsumerState<ReportsScreen> {
+  bool _isExporting = false;
+
+  Future<void> _exportPdf({required bool isPrint}) async {
+    if (_isExporting) return;
+
+    setState(() {
+      _isExporting = true;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Row(
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Generating report...'),
+          ],
+        ),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+
+    try {
+      final reportData = ref.read(reportsProvider);
+      final pdfService = ref.read(reportPdfServiceProvider);
+      final dateRangeLabel = _formatDateRange(reportData.period, reportData.dateRange);
+
+      final pdfBytes = await pdfService.generateReportPdf(
+        reportData: reportData,
+        periodLabel: dateRangeLabel,
+      );
+
+      final periodSlug = reportData.period.name;
+      final dateSlug = DateFormat('yyyyMMdd').format(reportData.dateRange.start);
+      final filename = 'MoneyPilot_${periodSlug}_report_$dateSlug.pdf';
+
+      if (isPrint) {
+        await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => pdfBytes,
+          name: filename,
+        );
+      } else {
+        await Printing.sharePdf(
+          bytes: pdfBytes,
+          filename: filename,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text('Unable to generate the report. Please try again.'),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        messenger.hideCurrentSnackBar();
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
+  void _showExportOptions(BuildContext context) {
+    final reportData = ref.read(reportsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateRangeLabel = _formatDateRange(reportData.period, reportData.dateRange);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.picture_as_pdf_rounded,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Export Financial Report',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? AppColors.textPrimaryDark : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        Text(
+                          dateRangeLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? AppColors.textSecondaryDark : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              ListTile(
+                key: const Key('export_print_save_option'),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                tileColor: isDark ? AppColors.cardDark : const Color(0xFFF8FAFC),
+                leading: const Icon(Icons.print_outlined, color: AppColors.primary),
+                title: const Text(
+                  'Print / Save as PDF',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Preview report, print, or save to device storage',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _exportPdf(isPrint: true);
+                },
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                key: const Key('export_share_option'),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                tileColor: isDark ? AppColors.cardDark : const Color(0xFFF8FAFC),
+                leading: const Icon(Icons.share_outlined, color: AppColors.primary),
+                title: const Text(
+                  'Share PDF Document',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Share via WhatsApp, Gmail, Drive, or messaging apps',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _exportPdf(isPrint: false);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final reportData = ref.watch(reportsProvider);
     final selectedPeriod = ref.watch(reportPeriodProvider);
     final referenceDate = ref.watch(reportReferenceDateProvider);
@@ -59,6 +273,33 @@ class ReportsScreen extends ConsumerWidget {
             ),
           ],
         ),
+        actions: [
+          if (_isExporting)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                  ),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              key: const Key('report_export_pdf_button'),
+              tooltip: 'Export PDF',
+              icon: const Icon(
+                Icons.picture_as_pdf_outlined,
+                color: AppColors.primary,
+                size: 24,
+              ),
+              onPressed: () => _showExportOptions(context),
+            ),
+        ],
       ),
       body: RefreshIndicator(
         color: AppColors.primary,

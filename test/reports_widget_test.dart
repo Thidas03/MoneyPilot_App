@@ -242,5 +242,30 @@ void main() {
       final currentYearLabel = ReportPeriod.year.formatPeriodLabel(DateTime.now());
       expect(find.text(currentYearLabel), findsWidgets);
     });
+
+    testWidgets('Export PDF button renders in AppBar and opens Export Options bottom sheet', (WidgetTester tester) async {
+      await loadReportsTab(tester);
+
+      final exportButton = find.byKey(const Key('report_export_pdf_button'));
+      expect(exportButton, findsOneWidget);
+
+      // Tap Export PDF button
+      await tester.tap(exportButton);
+      await tester.pumpAndSettle();
+
+      // Modal bottom sheet should be presented
+      expect(find.text('Export Financial Report'), findsOneWidget);
+      expect(find.byKey(const Key('export_print_save_option')), findsOneWidget);
+      expect(find.text('Print / Save as PDF'), findsOneWidget);
+      expect(find.byKey(const Key('export_share_option')), findsOneWidget);
+      expect(find.text('Share PDF Document'), findsOneWidget);
+
+      // Dismiss bottom sheet by tapping barrier
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Export Financial Report'), findsNothing);
+    });
   });
 }
+
